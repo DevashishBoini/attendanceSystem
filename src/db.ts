@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 import type { Connection, ConnectOptions } from 'mongoose';
+import config from './config.js';
+import type { SupportedServerApiVersion } from './constants.js';
 
-type SupportedServerApiVersion = '1';
+
 
 interface MongoClientOptions {
   serverApi: {
@@ -23,7 +25,7 @@ class DatabaseClient {
   }
 
   /**
-   * Validates and builds MongoDB client connection options with strict type checking.
+    Validates and builds MongoDB client connection options with strict type checking.
    * 
    * This method ensures that only supported MongoDB Server API versions are used,
    * providing runtime validation in addition to TypeScript's compile-time checks.
@@ -126,12 +128,13 @@ let dbClientInstance: DatabaseClient | null = null;
 
 function getDbClient(): DatabaseClient {
   if (!dbClientInstance) {
-    dbClientInstance = new DatabaseClient(process.env.MONGO_DB_URI || '');
+    dbClientInstance = new DatabaseClient(config.MONGO_DB_URI);
   }
   return dbClientInstance;
 }
 
 export async function connectDB(): Promise<void> {
+  console.log('🔌 Connecting to MongoDB...');
   const client = getDbClient();
   await client.connect();
   await client.ping();

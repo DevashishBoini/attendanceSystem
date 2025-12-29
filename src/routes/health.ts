@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 
-const router: Router = Router();
+const healthRouter: Router = Router();
 
 /**
  * Health check endpoint
  * Returns server status
  */
-router.get('/', (req: Request, res: Response): void => {
+healthRouter.get('/', (req: Request, res: Response): void => {
   console.log('✅ Health check endpoint hit!!');
   res.json({ message: 'Attendance API running' });
 });
 
-export default router;
+export default healthRouter;
