@@ -4,8 +4,9 @@ export interface ClassDocument {
     _id: Types.ObjectId;
     className: string;
     teacherId: Types.ObjectId;
-    studentIds: Types.ObjectId[];
+    studentIds: Array<Types.ObjectId>;
 }
+ 
 
 export const ClassSchema = new Schema<ClassDocument>({
     className: { type: String, required: true, unique: true },

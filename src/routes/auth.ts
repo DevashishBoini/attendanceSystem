@@ -5,6 +5,8 @@ import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type 
 import { UserModel } from '../db-models/user.js';
 import config from '../config.js';
 import jwt from 'jsonwebtoken';
+import { JWTPayloadSchema, type JWTPayload } from '../schemas/jwt.js';
+import { generateJWT } from '../utils/jwt.js';
 
 const authRouter : Router = Router();
 
@@ -117,9 +119,15 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+   const jwtPayload: JWTPayload = {
+      userId: user._id.toString(),
+      role: user.role,
+    };
+
+
     // Respond with success and JWT token
     // Generate JWT token
-    const jwtToken = jwt.sign({ userId: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' })
+    const jwtToken = generateJWT(jwtPayload);
   
     const successResponse: SuccessResponse = {
       success: true,

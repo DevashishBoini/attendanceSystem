@@ -7,7 +7,7 @@ import { z } from 'zod';
  * @example
  * {
  *   "success": true,
- *   "data": { "userId": "123", "name": "John" }
+ *   "data": { "_id": "123", "name": "John" }
  * }
  */
 export const SuccessResponseSchema = z.object({

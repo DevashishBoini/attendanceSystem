@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyJWT } from '../utils/jwt.js';
 import { type JWTPayload } from '../schemas/jwt.js';
+import { type UserRole, TEACHER_ROLE } from '../constants.js';
 
 /**
  * Extend Express Request interface to include authenticated user data
@@ -36,7 +37,7 @@ declare global {
  * @example
  * // Protect a route
  * router.get('/me', authMiddleware, (req, res) => {
- *   console.log(req.user?.userId);  // Authenticated user ID
+ *   console.log(req.user?._id);  // Authenticated user ID
  * });
  * 
  * @throws Returns 401 if token is missing or invalid
@@ -48,21 +49,20 @@ export function authMiddleware(
 ): void {
   try {
     // Extract Authorization header
-    // Expected format: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    // Expected format: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
     const authHeader = req.headers.authorization;
 
-    // ✅ Check if Authorization header exists and starts with "Bearer "
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // ✅ Check if Authorization header exists
+    if (!authHeader) {
       res.status(401).json({
         success: false,
-        message: 'No token provided. Use Authorization: Bearer <token>'
+        error: "Unauthorized, token missing or invalid"
       });
       return;
     }
 
-    // Extract token by removing "Bearer " prefix (7 characters)
-    // Example: "Bearer abc123" → "abc123"
-    const token = authHeader.slice(7);
+    // Use token directly from header
+    const token = authHeader;
 
     // Verify token signature and expiration
     // Returns null if token is invalid or expired
@@ -72,7 +72,7 @@ export function authMiddleware(
     if (!payload) {
       res.status(401).json({
         success: false,
-        message: 'Invalid or expired token'
+        error: "Unauthorized, token missing or invalid"
       });
       return;
     }
@@ -82,7 +82,7 @@ export function authMiddleware(
      * Now available in route handlers as req.user
      * 
      * Contains:
-     * - userId: MongoDB user ID
+     * - _id: MongoDB user ID
      * - role: User role ('teacher' or 'student')
      */
     req.user = payload;
@@ -93,7 +93,7 @@ export function authMiddleware(
     console.error('❌ Authentication error:', error);
     res.status(401).json({
       success: false,
-      message: 'Authentication failed'
+      error: 'Authentication failed'
     });
   }
 }
@@ -109,47 +109,50 @@ export function authMiddleware(
 
 
 /**
- * Role-Based Access Control Middleware Factory
+ * Teacher Role Middleware
  * 
- * Creates a middleware that checks if user has required role.
- * Use for routes that only specific roles can access.
+ * Checks if authenticated user has the teacher role.
+ * Must be used after authMiddleware to ensure user is authenticated.
  * 
- * @param allowedRoles - Array of roles allowed to access route
  * @returns Middleware function
  * 
  * @example
  * // Only teachers can create classes
- * router.post('/classes', authMiddleware, roleMiddleware(['teacher']), (req, res) => {
+ * router.post('/class', authMiddleware, teacherRoleMiddleware, async (req, res) => {
  *   // Only teachers reach here
  * });
  * 
- * @example
- * // Both teachers and students can view
- * router.get('/classes', authMiddleware, roleMiddleware(['teacher', 'student']), (req, res) => {
- *   // Both roles reach here
- * });
+ * @throws Returns 403 if user is not a teacher
  */
-export function roleMiddleware(allowedRoles: Array<'teacher' | 'student'>) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    // ✅ Check if user is authenticated (authMiddleware should run first)
+export function teacherRoleMiddleware(req: Request, res: Response, next: NextFunction): void {
+  try {
+    //  Check if user is authenticated (authMiddleware should run first)
     if (!req.user) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated'
+        error: "Unauthorized, token missing or invalid"
       });
       return;
     }
 
-    // ✅ Check if user's role is in allowed roles
-    if (!allowedRoles.includes(req.user.role)) {
+    //  Check if user's role is teacher
+    if (req.user.role !== TEACHER_ROLE) {
       res.status(403).json({
         success: false,
-        message: `Access denied. Required roles: ${allowedRoles.join(', ')}`
+        error: "Forbidden, teacher access required"
       });
       return;
     }
 
-    // User has required role, proceed to route handler
+    /**
+     * User is a teacher, proceed to route handler
+     */
     next();
-  };
+  } catch (error) {
+    console.error('❌ Role check error:', error);
+    res.status(403).json({
+      success: false,
+      error: 'Authorization failed'
+    });
+  }
 }

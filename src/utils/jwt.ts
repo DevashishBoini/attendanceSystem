@@ -5,20 +5,16 @@ import config from '../config.js';
 
 const JWT_SECRET = config.JWT_SECRET_KEY;
 
-export function generateJWT(userId: string, role: UserRole): string {
-    const payload: JWTPayload = {
-    userId: userId,
-    role: role,
-    };
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
+export function generateJWT(jwtPayload: JWTPayload): string {
+    return jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: '1h' });
 }
 
-export function verifyJWT(token: string): JWTPayload {
+export function verifyJWT(token: string): JWTPayload | null {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         const parsedPayload = JWTPayloadSchema.parse(decoded);
         return parsedPayload;
     } catch (error) {
-        throw new Error('Invalid or expired token');
+        return null;
     }
 }
