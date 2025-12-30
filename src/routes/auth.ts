@@ -5,6 +5,7 @@ import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type 
 import { UserModel } from '../db-models/user.js';
 import config from '../config.js';
 import jwt from 'jsonwebtoken';
+import { authMiddleware } from '../middleware/auth.js';
 import { JWTPayloadSchema, type JWTPayload } from '../schemas/jwt.js';
 import { generateJWT } from '../utils/jwt.js';
 
@@ -144,6 +145,46 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
     const errorResponse: ErrorResponse = {
       success: false,
       error: error instanceof Error ? error.message : 'Login failed - unknown error occurred',
+    };
+
+    ErrorResponseSchema.parse(errorResponse);
+    res.status(400).json(errorResponse);
+  }
+});
+
+
+authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // authMiddleware ensures req.user exists
+    const user = await UserModel.findById(req.user?.userId);
+    
+    if (!user) {
+      const errorResponse: ErrorResponse = {
+        success: false,
+        error: 'User not found',
+      };
+      
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(404).json(errorResponse);
+      return;
+    }
+
+    const successResponse: SuccessResponse = {
+      success: true,
+      data: {
+        _id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    };
+
+    SuccessResponseSchema.parse(successResponse);
+    res.status(200).json(successResponse);
+  } catch (error) {
+    const errorResponse: ErrorResponse = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch user',
     };
 
     ErrorResponseSchema.parse(errorResponse);
