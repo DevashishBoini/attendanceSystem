@@ -4,9 +4,8 @@ import { SignupSchema, type SignupData, LoginSchema, type LoginData } from '../s
 import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse } from '../schemas/responses.js';
 import { UserModel } from '../db-models/user.js';
 import config from '../config.js';
-import jwt from 'jsonwebtoken';
 import { authMiddleware } from '../middleware/auth.js';
-import { JWTPayloadSchema, type JWTPayload } from '../schemas/jwt.js';
+import { type JWTPayload, type JWTDecoded } from '../schemas/jwt.js';
 import { generateJWT } from '../utils/jwt.js';
 
 const authRouter : Router = Router();

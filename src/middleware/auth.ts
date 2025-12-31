@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyJWT } from '../utils/jwt.js';
-import { type JWTPayload } from '../schemas/jwt.js';
+import { type JWTDecoded } from '../schemas/jwt.js';
 import { type UserRole, TEACHER_ROLE } from '../constants.js';
 
 /**
@@ -11,7 +11,7 @@ declare global {
   namespace Express {
     interface Request {
       /** Authenticated user payload from JWT token */
-      user?: JWTPayload;
+      user?: JWTDecoded;
     }
   }
 }
@@ -37,7 +37,7 @@ declare global {
  * @example
  * // Protect a route
  * router.get('/me', authMiddleware, (req, res) => {
- *   console.log(req.user?._id);  // Authenticated user ID
+ *   console.log(req.user?.userId);  // Authenticated user ID
  * });
  * 
  * @throws Returns 401 if token is missing or invalid
