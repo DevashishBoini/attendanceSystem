@@ -17,7 +17,7 @@ class DatabaseClient {
   private uri: string;
   private clientOptions: MongoClientOptions;
   private connection: Connection | null = null;
-  private readonly supportedVersions: SupportedServerApiVersion[] = ['1'];
+  private readonly supportedVersions: Array<SupportedServerApiVersion> = ['1'];
 
   constructor(uri: string) {
     this.uri = uri;
@@ -97,6 +97,20 @@ class DatabaseClient {
     }
   }
 
+  /**
+   * Verify MongoDB connection is active and responsive
+   * @description Sends a ping command to the MongoDB server to test connectivity
+   * without performing any actual database operations. Useful for health checks
+   * and connection validation.
+   * @returns {Promise<boolean>} true if MongoDB is reachable and responding, false if connection fails
+   * @example
+   * const isHealthy = await client.ping();
+   * if (isHealthy) {
+   *   console.log('Database is healthy');
+   * } else {
+   *   console.log('Database connection lost');
+   * }
+   */
   async ping(): Promise<boolean> {
     try {
       await this.connection?.db?.admin().command({ ping: 1 });
@@ -119,24 +133,36 @@ class DatabaseClient {
   /**
    * Get list of supported MongoDB API versions
    */
-  getSupportedVersions(): SupportedServerApiVersion[] {
+  getSupportedVersions(): Array<SupportedServerApiVersion> {
     return [...this.supportedVersions];
   }
 }
 
 let dbClientInstance: DatabaseClient | null = null;
 
-function getDbClient(): DatabaseClient {
+export function getDbClient(): DatabaseClient {
   if (!dbClientInstance) {
     dbClientInstance = new DatabaseClient(config.MONGO_DB_URI);
   }
   return dbClientInstance;
 }
 
-export async function connectDB(): Promise<void> {
+export async function connectDB(): Promise<DatabaseClient> {
   console.log('🔌 Connecting to MongoDB...');
   const client = getDbClient();
   await client.connect();
   await client.ping();
+  return client;
+}
+
+export async function disconnectDB(): Promise<void> {
+  console.log('🔌 Disconnecting from MongoDB...');
+  const client = getDbClient();
+  await client.disconnect();
+}
+
+export function isDBConnected(): boolean {
+  const client = getDbClient();
+  return client.isConnected();
 }
 

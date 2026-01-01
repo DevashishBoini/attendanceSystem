@@ -8,9 +8,21 @@ import { authMiddleware } from '../middleware/auth.js';
 import { type JWTPayload, type JWTDecoded } from '../schemas/jwt.js';
 import { generateJWT } from '../utils/jwt.js';
 
+/**
+ * Authentication Routes
+ * @module routes/auth
+ * @description Handles user authentication endpoints: signup, login, and profile retrieval
+ */
 const authRouter : Router = Router();
 
 
+/**
+ * POST /auth/signup
+ * @description Register a new user account
+ * @param {SignupData} req.body - User registration data (name, email, password, role)
+ * @returns {SuccessResponse} 201 - User created with profile data (no token)
+ * @returns {ErrorResponse} 400 - Validation error or email already exists
+ */
 authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  => {
   try {
     // Validate request body against SignupSchema
@@ -76,6 +88,14 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
 });
 
 
+/**
+ * POST /auth/login
+ * @description Authenticate user and return JWT token
+ * @param {LoginData} req.body - User credentials (email, password)
+ * @returns {SuccessResponse} 200 - Authentication successful with JWT token
+ * @returns {ErrorResponse} 401 - Invalid email or password
+ * @returns {ErrorResponse} 400 - Validation error or login failed
+ */
 authRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate request body against LoginSchema
@@ -106,7 +126,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Compare passwords
+    // Compare passwords using bcrypt
     const passwordMatch = await bcrypt.compare(loginData.password, user.password);
     if (!passwordMatch) {
       const errorResponse: ErrorResponse = {
@@ -119,13 +139,12 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+   // Prepare JWT payload with user credentials
    const jwtPayload: JWTPayload = {
       userId: user._id.toString(),
       role: user.role,
     };
 
-
-    // Respond with success and JWT token
     // Generate JWT token
     const jwtToken = generateJWT(jwtPayload);
   
@@ -152,6 +171,15 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 });
 
 
+/**
+ * GET /auth/me
+ * @description Retrieve current authenticated user's profile
+ * @requires Authentication - Must include valid JWT token in Authorization header
+ * @returns {SuccessResponse} 200 - Current user's profile data
+ * @returns {ErrorResponse} 401 - Unauthorized (invalid or missing token)
+ * @returns {ErrorResponse} 404 - User not found
+ * @returns {ErrorResponse} 400 - Fetch failed
+ */
 authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     // authMiddleware ensures req.user exists
