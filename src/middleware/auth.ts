@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyJWT } from '../utils/jwt.js';
-import { type JWTDecoded } from '../schemas/jwt.js';
+import { type JWTDecoded, JWTDecodedSchema } from '../schemas/jwt.js';
 import { type UserRole, TEACHER_ROLE } from '../constants.js';
+import { ErrorResponseSchema, type ErrorResponse } from '../schemas/responses.js';
 
 /**
  * Extend Express Request interface to include authenticated user data
@@ -28,7 +29,7 @@ declare global {
  * Verifies JWT token from Authorization header and attaches user data to request.
  * Must be used on protected routes that require authentication.
  * 
- * Expected header format: Authorization: Bearer <token>
+ * Expected header format: Authorization: <token>
  * 
  * @param req - Express request object
  * @param res - Express response object
@@ -54,10 +55,14 @@ export function authMiddleware(
 
     // ✅ Check if Authorization header exists
     if (!authHeader) {
-      res.status(401).json({
+
+      const errorResponse: ErrorResponse = {
         success: false,
-        error: "Unauthorized, token missing or invalid"
-      });
+        error: 'Unauthorized, token missing or invalid'
+      };
+
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(401).json(errorResponse);
       return;
     }
 
@@ -69,23 +74,32 @@ export function authMiddleware(
     const payload = verifyJWT(token);
 
     // ✅ Check if token verification failed
-    if (!payload) {
-      res.status(401).json({
+    // Validate payload structure and required fields using schema
+    const validatedPayload = JWTDecodedSchema.safeParse(payload);
+    if (!validatedPayload.success) {
+
+      const errorResponse: ErrorResponse = {
         success: false,
-        error: "Unauthorized, token missing or invalid"
-      });
+        error: 'Unauthorized, token missing or invalid'
+      };
+
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(401).json(errorResponse);
       return;
     }
+   
 
     /**
      * Attach decoded user data to request object
      * Now available in route handlers as req.user
      * 
      * Contains:
-     * - _id: MongoDB user ID
+     * - userId: User's MongoDB ID
      * - role: User role ('teacher' or 'student')
+     * - iat: Token issued-at timestamp
+     * - exp: Token expiration timestamp
      */
-    req.user = payload;
+    req.user = validatedPayload.data;
 
     // Pass control to next middleware/route handler
     next();
@@ -128,21 +142,32 @@ export function teacherRoleMiddleware(req: Request, res: Response, next: NextFun
   try {
     //  Check if user is authenticated (authMiddleware should run first)
     if (!req.user) {
-      res.status(401).json({
+
+      const errorResponse: ErrorResponse = {
         success: false,
-        error: "Unauthorized, token missing or invalid"
-      });
+        error: 'Unauthorized, token missing or invalid'
+      };
+
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(401).json(errorResponse);
       return;
     }
+    
 
     //  Check if user's role is teacher
     if (req.user.role !== TEACHER_ROLE) {
-      res.status(403).json({
+
+      console.error('❌ Teacher role check failed');
+      const errorResponse: ErrorResponse = {
         success: false,
-        error: "Forbidden, teacher access required"
-      });
+        error: 'Forbidden, teacher access required'
+      };
+      
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(403).json(errorResponse);
       return;
-    }
+      }
+    
 
     /**
      * User is a teacher, proceed to route handler

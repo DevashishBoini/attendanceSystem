@@ -7,6 +7,7 @@ import config from '../config.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { type JWTPayload, type JWTDecoded } from '../schemas/jwt.js';
 import { generateJWT } from '../utils/jwt.js';
+import { dbService } from '../utils/db.js';
 
 /**
  * Authentication Routes
@@ -42,7 +43,7 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
     const signupData: SignupData = validationResult.data;
 
     // Check if user with the same email already exists
-    const existingUser = await UserModel.findOne({ email: signupData.email });
+    const existingUser = await dbService.getUserByEmail(signupData.email);
     if (existingUser) {
         const errorResponse: ErrorResponse = {
             success: false,
@@ -59,9 +60,23 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
 
     const newSignupData = {...signupData, password: hashedPassword};
     // Create new user document
-    const newUser = await UserModel.create(newSignupData);
+    const newUser = await dbService.createUser({
+      name: newSignupData.name,
+      email: newSignupData.email,
+      password: newSignupData.password,
+      role: newSignupData.role
+    });
 
-    // Respond with success (user created, no token)
+    if (!newUser) {
+      const errorResponse: ErrorResponse = {
+        success: false,
+        error: 'Failed to create user',
+      };
+
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(400).json(errorResponse);
+      return;
+    }
     const successResponse: SuccessResponse = {
       success: true,
       data: {
@@ -113,9 +128,9 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 
     const loginData: LoginData = validationResult.data;
 
-    // Find user by email (explicitly select password field since it has select: false)
-    const user = await UserModel.findOne({ email: loginData.email }).select('+password');
-    if (!user) {
+    // Find user by email (fetch password for authentication)
+    const userData = await dbService.getUserByEmail(loginData.email, true);
+    if (!userData) {
       const errorResponse: ErrorResponse = {
         success: false,
         error: 'Invalid email or password',
@@ -127,7 +142,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
     }
 
     // Compare passwords using bcrypt
-    const passwordMatch = await bcrypt.compare(loginData.password, user.password);
+    const passwordMatch = await bcrypt.compare(loginData.password, userData.password);
     if (!passwordMatch) {
       const errorResponse: ErrorResponse = {
         success: false,
@@ -141,8 +156,8 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 
    // Prepare JWT payload with user credentials
    const jwtPayload: JWTPayload = {
-      userId: user._id.toString(),
-      role: user.role,
+      userId: userData._id.toString(),
+      role: userData.role,
     };
 
     // Generate JWT token
@@ -183,9 +198,9 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     // authMiddleware ensures req.user exists
-    const user = await UserModel.findById(req.user?.userId);
+    const userData = await dbService.getUserById(req.user!.userId);
     
-    if (!user) {
+    if (!userData) {
       const errorResponse: ErrorResponse = {
         success: false,
         error: 'User not found',
@@ -199,10 +214,10 @@ authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promi
     const successResponse: SuccessResponse = {
       success: true,
       data: {
-        _id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        _id: userData._id.toString(),
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
       },
     };
 
