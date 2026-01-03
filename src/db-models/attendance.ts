@@ -1,4 +1,4 @@
-import { Schema, model, Types } from "mongoose";
+import { Schema, model, Types, Document } from "mongoose";
 import { AttendanceStatuses, type AttendanceStatus } from "../constants.js";
 
 /**
@@ -10,7 +10,7 @@ import { AttendanceStatuses, type AttendanceStatus } from "../constants.js";
  * @property {Types.ObjectId} studentId - Reference to the Student (User) document
  * @property {AttendanceStatus} status - Attendance status (e.g., 'present', 'absent')
  */
-export interface AttendanceDocument {
+export interface AttendanceDocument extends Document{
     _id: Types.ObjectId;
     classId: Types.ObjectId;
     studentId: Types.ObjectId;

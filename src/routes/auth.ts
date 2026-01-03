@@ -1,9 +1,6 @@
 import { Router, type Request, type Response } from 'express';
-import bcrypt from 'bcrypt';
 import { SignupSchema, type SignupData, LoginSchema, type LoginData } from '../schemas/auth.js';
 import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse } from '../schemas/responses.js';
-import { UserModel } from '../db-models/user.js';
-import config from '../config.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { type JWTPayload, type JWTDecoded } from '../schemas/jwt.js';
 import { generateJWT } from '../utils/jwt.js';
@@ -55,17 +52,14 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
         return;
     }
 
-    // Hash the password before saving [with no. of salt rounds set]
-    const hashedPassword = await bcrypt.hash(signupData.password, config.BCRYPT_SALT_ROUNDS);
-
-    const newSignupData = {...signupData, password: hashedPassword};
     // Create new user document
-    const newUser = await dbService.createUser({
-      name: newSignupData.name,
-      email: newSignupData.email,
-      password: newSignupData.password,
-      role: newSignupData.role
-    });
+    const newUser = await dbService.createUser(signupData);
+
+    // Hash password using UserModel method
+    if (newUser) {
+      await newUser.hashPassword(signupData.password);
+      await newUser.save();
+    }
 
     if (!newUser) {
       const errorResponse: ErrorResponse = {
@@ -141,8 +135,8 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Compare passwords using bcrypt
-    const passwordMatch = await bcrypt.compare(loginData.password, userData.password);
+    // Compare passwords using UserModel method
+    const passwordMatch = await userData.comparePassword(loginData.password);
     if (!passwordMatch) {
       const errorResponse: ErrorResponse = {
         success: false,

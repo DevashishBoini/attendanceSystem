@@ -58,7 +58,7 @@ export class DBService {
   async getUserById(userId: string): Promise<UserDocument | null> {
     try {
       // Mongoose handles string-to-ObjectId conversion automatically
-      const user = await UserModel.findById(userId);
+      const user = await UserModel.findById<UserDocument>(userId);
       return user;
     } catch (error) {
       console.error('Error fetching user by ID:', error);
@@ -84,7 +84,7 @@ export class DBService {
    */
   async getUserByEmail(email: string, includePassword: boolean = false): Promise<UserDocument | null> {
     try {
-      let query = UserModel.findOne({ email });
+      let query = UserModel.findOne<UserDocument>({ email });
       if (includePassword) {
         query = query.select('+password');
       }

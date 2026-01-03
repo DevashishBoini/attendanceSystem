@@ -1,4 +1,6 @@
-import { Schema, model, Types } from "mongoose";
+import { Schema, model, Types, Document
+    
+ } from "mongoose";
 
 /**
  * Class Document Interface
@@ -9,7 +11,7 @@ import { Schema, model, Types } from "mongoose";
  * @property {Types.ObjectId} teacherId - Reference to the teacher's User document
  * @property {Array<Types.ObjectId>} studentIds - Array of student User ID references
  */
-export interface ClassDocument {
+export interface ClassDocument extends Document{
     _id: Types.ObjectId;
     className: string;
     teacherId: Types.ObjectId;
@@ -23,9 +25,12 @@ export interface ClassDocument {
  * Enforces unique class names
  */
 export const ClassSchema = new Schema<ClassDocument>({
-    className: { type: String, required: true, unique: true },
+    className: { type: String, required: true},
     teacherId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    studentIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    studentIds: {
+        type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+        default: [],
+    }
 });
 
 /**
