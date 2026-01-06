@@ -8,8 +8,12 @@
     "dev": "tsx --watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "pnpm run test:unit && pnpm run test:integration",
+    "test": "vitest run",
+    "test-find": "vitest run -t",
+    "test-file": "vitest run",
+    "test-all": "pnpm run test:unit && pnpm run test:db &&pnpm run test:integration",
     "test:unit": "vitest run --project unit",
+    "test:db": "vitest run --project db",
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage"

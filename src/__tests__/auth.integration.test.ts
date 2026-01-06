@@ -11,6 +11,7 @@ import type { JWTDecoded } from '../schemas/jwt.js';
 import { verifyJWT } from '../utils/jwt.js';
 import config from '../config.js';
 import { TEACHER_ROLE, STUDENT_ROLE } from '../constants.js';
+import { testLog, clearLogs, printLogs, setTestName } from './utils/test-logger.js';
 
 // Authentication API Integration Tests
 
@@ -102,8 +103,18 @@ describe('Authentication API Integration Tests', () => {
   });
 
   beforeEach(async () => {
+    clearLogs();
     // Clean up test data before each test
     await cleanupTestData();
+  });
+
+  afterEach(async (context) => {
+    // Print logs only if test failed
+    if (context.task.result?.state === 'fail' || context.task.result?.errors?.length) {
+      setTestName(context.task.name);
+      printLogs();
+    }
+    clearLogs();
   });
 
   afterAll(async () => {
@@ -134,9 +145,10 @@ describe('Authentication API Integration Tests', () => {
     });
 
     it('should return 400 for invalid email format', async () => {
+      const signupData = createInvalidSignupData({ email: 'invalid-email' });
       const response = await request(app)
         .post('/auth/signup')
-        .send(createInvalidSignupData({ email: 'invalid-email' }));
+        .send(signupData);
 
       expect(response.status).toBe(400);
       expect(response.body.success).toBe(false);
@@ -389,6 +401,38 @@ describe('Authentication API Integration Tests', () => {
       expect(meResponse.body.data._id).toBe(userId);
       expect(meResponse.body.data.email).toBe(testUserEmail);
       expect(meResponse.body.data.role).toBe(STUDENT_ROLE);
+    });
+
+    it('should return 404 if authenticated user is deleted from database', async () => {
+      // 1. Create user and get token
+      const testUserEmail = `--test-${Date.now()}-deleted@example.com`;
+      const signupData = createSignupData(testUserEmail, { role: STUDENT_ROLE, password: 'password123' });
+      const signupResponse = await request(app)
+        .post('/auth/signup')
+        .send(signupData);
+
+      expect(signupResponse.status).toBe(201);
+      const userId = signupResponse.body.data._id;
+
+      const loginData = createLoginData(testUserEmail);
+      const loginResponse = await request(app)
+        .post('/auth/login')
+        .send(loginData);
+
+      expect(loginResponse.status).toBe(200);
+      const token = loginResponse.body.data.token;
+
+      // 2. Delete user from database (but token is still valid)
+      await UserModel.findByIdAndDelete(userId);
+
+      // 3. Try to access /auth/me with valid token but deleted user
+      const meResponse = await request(app)
+        .get('/auth/me')
+        .set('Authorization', token);
+
+      expect(meResponse.status).toBe(404);
+      expect(meResponse.body.success).toBe(false);
+      expect(meResponse.body.error).toBe('User not found');
     });
   });
 });

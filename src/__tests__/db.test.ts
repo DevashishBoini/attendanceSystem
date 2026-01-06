@@ -1,10 +1,22 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { connectDB, disconnectDB, isDBConnected, getDbClient } from '../db.js';
 import { UserModel } from '../db-models/user.js';
+import { testLog, clearLogs, printLogs, setTestName } from './utils/test-logger.js';
 
 describe('Database Connection', () => {
+  beforeEach(() => {
+    clearLogs();
+  });
+
   // Clean state between tests
-  afterEach(async () => {
+  afterEach(async (context) => {
+    // Print logs only if test failed
+    if (context.task.result?.state === 'fail' || context.task.result?.errors?.length) {
+      setTestName(context.task.name);
+      printLogs();
+    }
+    clearLogs();
+    
     try {
       await disconnectDB();
     } catch (error) {

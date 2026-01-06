@@ -1,11 +1,24 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { generateJWT, verifyJWT } from '../utils/jwt.js';
 import { TEACHER_ROLE, STUDENT_ROLE } from '../constants.js';
 import { JWTPayloadSchema, type JWTPayload, JWTDecodedSchema } from '../schemas/jwt.js';
 import config from '../config.js';
 import jwt from 'jsonwebtoken';
+import { testLog, clearLogs, printLogs, setTestName } from './utils/test-logger.js';
 
 describe('JWT Utilities', () => {
+  beforeEach(() => {
+    clearLogs();
+  });
+
+  afterEach(async (context) => {
+    // Print logs only if test failed
+    if (context.task.result?.state === 'fail' || context.task.result?.errors?.length) {
+      setTestName(context.task.name);
+      printLogs();
+    }
+    clearLogs();
+  });
   const testUserId = '507f1f77bcf86cd799439011';
 
   describe('generateJWT', () => {
