@@ -14,6 +14,14 @@ interface CreateUserOptions {
   role: string;
 }
 
+/**
+ * Interface for creating a new class
+ */
+interface CreateClassOptions {
+  className: string;
+  teacherId: string;
+  studentIds?: Array<string>;
+}
 
 
 /**
@@ -84,7 +92,7 @@ export class DBService {
    */
   async getUserByEmail(email: string, includePassword: boolean = false): Promise<UserDocument | null> {
     try {
-      let query = UserModel.findOne<UserDocument>({ email });
+      let query = UserModel.findOne<UserDocument>({ email : email });
       if (includePassword) {
         query = query.select('+password');
       }
@@ -122,6 +130,125 @@ export class DBService {
       return null;
     }
   }
+
+
+
+  /**
+   * Create a new class in the database
+   * 
+   * Creates a new class document with the provided data.
+   * Handles conversion of string IDs to MongoDB ObjectIds internally.
+   * 
+   * @param classData - Class data object
+   * @returns Created class document or null if creation failed
+   * 
+   * @example
+   * const newClass = await dbService.createClass({
+   *   className: 'Physics 101',
+   *   teacherId: '507f1f77bcf86cd799439011',
+   *   studentIds: []
+   * });
+   */
+  async createClass(classData: CreateClassOptions): Promise<ClassDocument | null> {
+    try {
+      // Service handles type conversion - convert string IDs to ObjectIds
+      const dataWithObjectIds = {
+        className: classData.className,
+        teacherId: new Types.ObjectId(classData.teacherId),
+        studentIds: (classData.studentIds ?? []).map(id => new Types.ObjectId(id))
+      };
+      const newClass = await ClassModel.create(dataWithObjectIds);
+      return newClass;
+    } catch (error) {
+      console.error('Error creating class:', error);
+      return null;
+    }
+  }  
+
+  /**
+   * Retrieves a class document by its ID from the database
+   * 
+   * @param classId - MongoDB class ID (string)
+   * @returns Class document or null if not found or query failed
+   * 
+   * @example
+   * const classDoc = await dbService.getClassById('507f1f77bcf86cd799439011');
+   */
+  async getClassById(classId: string): Promise<ClassDocument | null> {
+    try {
+      const classDoc = await ClassModel.findById<ClassDocument>(classId);
+      return classDoc;
+    } catch (error) {
+      console.error('Error fetching class by ID:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Adds a student to a class by ID
+   * 
+   * Updates the class document by adding the student's ID to the studentIds array.
+   * Handles conversion of string IDs to MongoDB ObjectIds internally.
+   * 
+   * @param classId - MongoDB class ID (string)
+   * @param studentId - MongoDB student ID (string)
+   * @returns Updated class document or null if update failed
+   * 
+   * @example
+   * const updatedClass = await dbService.addStudentToClass('507f1f77bcf86cd799439011', '507f191e436d609404116113');
+   */
+  async addStudentToClass(classId: string, studentId: string): Promise<ClassDocument | null> {
+    try {
+      const updatedClass = await ClassModel.findByIdAndUpdate<ClassDocument>(
+        classId,
+        { $addToSet: { studentIds: new Types.ObjectId(studentId) } },
+        { new: true }
+      );
+      return updatedClass;
+    } catch (error) {
+      console.error('Error adding student to class:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves an array of student documents from the database by their IDs
+   * 
+   * @param studentIds - Array of student IDs to retrieve
+   * @returns Array of student documents (selecting only _id, name, and email)
+   * or null if the query fails
+   * 
+   * @example
+   * const studentDetails = await dbService.getStudentDetails(['507f1f77bcf86cd799439011', '507f191e436d609404116113']);
+   */
+  async getStudentDetails(studentIds: Array<Types.ObjectId>): Promise<Array<UserDocument> | null> {
+    try {
+      const students = await UserModel.find<UserDocument>({ _id: { $in: studentIds } }).select('_id name email');
+      return students;
+    } catch (error) {
+      console.error('Error fetching student details:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Retrieves all student documents from the database
+   * 
+   * @returns Array of student documents or null if the query fails
+   * 
+   * @example
+   * const students = await dbService.getAllStudents();
+   */
+  async getAllStudents(): Promise<Array<UserDocument> | null> {
+    try {
+      const students = await UserModel.find<UserDocument>({ role: 'student' }).select('_id name email');
+      return students;
+    } catch (error) {
+      console.error('Error fetching all students:', error);
+      return null;
+    }
+  }
+
 
 
 }

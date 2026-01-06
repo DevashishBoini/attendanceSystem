@@ -14,14 +14,14 @@ import { UserRoles, type UserRole } from "../constants.js";
  * @property {UserRole} role - User's role (e.g., 'teacher', 'student')
  * 
  * @method hashPassword
- * @description Hashes a plain text password and updates the document
- * @param {string} password - Plain text password to hash
- * @returns {Promise<void>}
+ *      @description Hashes a plain text password and updates the document
+ *      @param {string} password - Plain text password to hash
+ *      @returns {Promise<void>}
  * 
  * @method comparePassword
- * @description Compares a plain text password with the stored hashed password
- * @param {string} enteredPassword - Plain text password to compare
- * @returns {Promise<boolean>} True if passwords match, false otherwise
+ *      @description Compares a plain text password with the stored hashed password
+ *      @param {string} enteredPassword - Plain text password to compare
+ *      @returns {Promise<boolean>} True if passwords match, false otherwise
  */
 export interface UserDocument extends Document {
     _id: Types.ObjectId;

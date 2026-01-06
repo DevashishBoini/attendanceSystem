@@ -5,6 +5,7 @@ import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type 
 import { connectDB, disconnectDB } from './db.js';
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
+import classRoutes from './routes/class.js';
 
 export async function createApp(): Promise<Express> {
   const app = express(); // create Express app    
@@ -19,6 +20,7 @@ export async function createApp(): Promise<Express> {
 
   app.use('/', healthRoutes); // Health Routes
   app.use('/auth', authRoutes); // Auth Routes
+  app.use(classRoutes); // Class Routes
 
   // Unknown Route 404 handler
   app.use((req: Request, res: Response) => {

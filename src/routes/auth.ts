@@ -17,7 +17,7 @@ const authRouter : Router = Router();
 /**
  * POST /auth/signup
  * @description Register a new user account
- * @param {SignupData} req.body - User registration data (name, email, password, role)
+ * @param {SignupData} req.body [body] - User registration data (name, email, password, role)
  * @returns {SuccessResponse} 201 - User created with profile data (no token)
  * @returns {ErrorResponse} 400 - Validation error or email already exists
  */
@@ -100,7 +100,7 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
 /**
  * POST /auth/login
  * @description Authenticate user and return JWT token
- * @param {LoginData} req.body - User credentials (email, password)
+ * @param {LoginData} req.body [body] - User credentials (email, password)
  * @returns {SuccessResponse} 200 - Authentication successful with JWT token
  * @returns {ErrorResponse} 401 - Invalid email or password
  * @returns {ErrorResponse} 400 - Validation error or login failed
@@ -183,6 +183,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 /**
  * GET /auth/me
  * @description Retrieve current authenticated user's profile
+ * @param {string} req.headers.authorization [header] - JWT token in format <token>
  * @requires Authentication - Must include valid JWT token in Authorization header
  * @returns {SuccessResponse} 200 - Current user's profile data
  * @returns {ErrorResponse} 401 - Unauthorized (invalid or missing token)
