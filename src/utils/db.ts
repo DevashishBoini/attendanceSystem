@@ -58,7 +58,8 @@ export class DBService {
    * string-to-ObjectId conversion for queries.
    * 
    * @param userId - MongoDB user ID from JWT payload (string or ObjectId)
-   * @returns Full user document or null if not found
+   * @returns Full user document or null if not found or invalid ID format
+   * @throws Error if database query fails (excluding CastError)
    * 
    * @example
    * const user = await dbService.getUserById('507f1f77bcf86cd799439011');
@@ -69,8 +70,12 @@ export class DBService {
       const user = await UserModel.findById<UserDocument>(userId);
       return user;
     } catch (error) {
+      // Return null for invalid ObjectId format (CastError)
+      if (error instanceof Error && error.name === 'CastError') {
+        return null;
+      }
       console.error('Error fetching user by ID:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -82,6 +87,7 @@ export class DBService {
    * @param email - User's email address
    * @param includePassword - Whether to include the password field (defaults to false)
    * @returns Full user document or null if not found
+   * @throws Error if database query fails
    * 
    * @example
    * // Get user without password
@@ -100,7 +106,7 @@ export class DBService {
       return user;
     } catch (error) {
       console.error('Error fetching user by email:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -111,7 +117,8 @@ export class DBService {
    * Automatically hashes the password before saving to database.
    * 
    * @param userData - User data object with plain text password
-   * @returns Created user document or null if creation failed
+   * @returns Created user document or null if duplicate email
+   * @throws Error if user creation or password hashing fails (excluding E11000 duplicate key errors)
    * 
    * @example
    * const user = await dbService.createUser({
@@ -128,8 +135,13 @@ export class DBService {
       await newUser.save();
       return newUser;
     } catch (error) {
+      // Return null for duplicate email (E11000 error)
+      if (error instanceof Error && error.message.includes('E11000')) {
+        console.error('Duplicate email error:', error.message);
+        return null;
+      }
       console.error('Error creating user:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -142,7 +154,8 @@ export class DBService {
    * Handles conversion of string IDs to MongoDB ObjectIds internally.
    * 
    * @param classData - Class data object
-   * @returns Created class document or null if creation failed
+   * @returns Created class document
+   * @throws Error if class creation fails
    * 
    * @example
    * const newClass = await dbService.createClass({
@@ -151,7 +164,7 @@ export class DBService {
    *   studentIds: []
    * });
    */
-  async createClass(classData: CreateClassOptions): Promise<ClassDocument | null> {
+  async createClass(classData: CreateClassOptions): Promise<ClassDocument> {
     try {
       // Service handles type conversion - convert string IDs to ObjectIds
       const dataWithObjectIds = {
@@ -163,7 +176,7 @@ export class DBService {
       return newClass;
     } catch (error) {
       console.error('Error creating class:', error);
-      return null;
+      throw error;
     }
   }  
 
@@ -171,7 +184,8 @@ export class DBService {
    * Retrieves a class document by its ID from the database
    * 
    * @param classId - MongoDB class ID (string)
-   * @returns Class document or null if not found or query failed
+   * @returns Class document or null if not found
+   * @throws Error if database query fails
    * 
    * @example
    * const classDoc = await dbService.getClassById('507f1f77bcf86cd799439011');
@@ -182,7 +196,7 @@ export class DBService {
       return classDoc;
     } catch (error) {
       console.error('Error fetching class by ID:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -194,7 +208,8 @@ export class DBService {
    * 
    * @param classId - MongoDB class ID (string)
    * @param studentId - MongoDB student ID (string)
-   * @returns Updated class document or null if update failed
+   * @returns Updated class document or null if not updated
+   * @throws Error if database update fails
    * 
    * @example
    * const updatedClass = await dbService.addStudentToClass('507f1f77bcf86cd799439011', '507f191e436d609404116113');
@@ -209,7 +224,7 @@ export class DBService {
       return updatedClass;
     } catch (error) {
       console.error('Error adding student to class:', error);
-      return null;
+      throw error;
     }
   }
 
@@ -218,36 +233,37 @@ export class DBService {
    * 
    * @param studentIds - Array of student IDs to retrieve
    * @returns Array of student documents (selecting only _id, name, and email)
-   * or null if the query fails
+   * @throws Error if database query fails
    * 
    * @example
    * const studentDetails = await dbService.getStudentDetails(['507f1f77bcf86cd799439011', '507f191e436d609404116113']);
    */
-  async getStudentDetails(studentIds: Array<Types.ObjectId>): Promise<Array<UserDocument> | null> {
+  async getStudentDetails(studentIds: Array<Types.ObjectId>): Promise<Array<UserDocument>> {
     try {
       const students = await UserModel.find<UserDocument>({ _id: { $in: studentIds } }).select('_id name email');
       return students;
     } catch (error) {
       console.error('Error fetching student details:', error);
-      return null;
+      throw error;
     }
   }
 
   /**
    * Retrieves all student documents from the database
    * 
-   * @returns Array of student documents or null if the query fails
+   * @returns Array of student documents
+   * @throws Error if database query fails
    * 
    * @example
    * const students = await dbService.getAllStudents();
    */
-  async getAllStudents(): Promise<Array<UserDocument> | null> {
+  async getAllStudents(): Promise<Array<UserDocument>> {
     try {
       const students = await UserModel.find<UserDocument>({ role: 'student' }).select('_id name email');
       return students;
     } catch (error) {
       console.error('Error fetching all students:', error);
-      return null;
+      throw error;
     }
   }
 

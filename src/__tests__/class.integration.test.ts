@@ -279,18 +279,18 @@ describe('Class API Integration Tests', () => {
       expect(response.body.error).toBe('Student not found');
     });
 
-    it('should return 400 if user is not a student', async () => {
+    it('should return 404 if userId does not belong to a student', async () => {
       const response = await request(app)
         .post(`/class/${classId}/add-student`)
         .set('Authorization', teacherToken)
         .send({ studentId: teacherId });
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(404);
       expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('User is not a student');
+      expect(response.body.error).toBe('Student not found');
     });
 
-    it('should return 400 if student is already enrolled', async () => {
+    it('should return 409 if student is already enrolled', async () => {
       // Add student first time
       await request(app)
         .post(`/class/${classId}/add-student`)
@@ -303,7 +303,7 @@ describe('Class API Integration Tests', () => {
         .set('Authorization', teacherToken)
         .send({ studentId: studentId1 });
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(409);
       expect(response.body.success).toBe(false);
       expect(response.body.error).toBe('Student already enrolled in class');
     });

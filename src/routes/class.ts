@@ -19,9 +19,10 @@ const classRouter : Router = Router();
  * @param {string} req.headers.authorization [header] - JWT token in format <token>
  * @param {RegisterClassNameData} req.body [body] - Class data (className)
  * @returns {SuccessResponse} 201 - Class created with id, name, teacher id, and student ids
- * @returns {ErrorResponse} 400 - Validation error or failed to create class
+ * @returns {ErrorResponse} 400 - Validation error
  * @returns {ErrorResponse} 401 - Unauthorized (not authenticated)
  * @returns {ErrorResponse} 403 - Forbidden (not a teacher)
+ * @returns {ErrorResponse} 500 - Failed to create class / Unknown error occurred
  */
 classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Request, res: Response): Promise<void>  => {
     try {
@@ -45,15 +46,17 @@ classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Re
         };
 
         const newClass = await dbService.createClass(classData);
+        
+        // Class creation check
 
-        if (!newClass) {
+        if (newClass === null) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Failed to create class',
             };
 
             ErrorResponseSchema.parse(errorResponse);
-            res.status(400).json(errorResponse);
+            res.status(500).json(errorResponse);
             return;
         }
         
@@ -76,7 +79,7 @@ classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Re
         console.error('❌ Error creating class:', error);
         const errorResponse: ErrorResponse = {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to create class',
+            error: 'Unknown error occurred',
         };
 
         ErrorResponseSchema.parse(errorResponse);
@@ -91,10 +94,12 @@ classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Re
  * @param {string} req.params.id [path] - Class ID
  * @param {StudentIdParam} req.body [body] - Student data (studentId)
  * @returns {SuccessResponse} 200 - Student added with updated class data
- * @returns {ErrorResponse} 400 - Validation error or student already enrolled
+ * @returns {ErrorResponse} 400 - Validation error 
  * @returns {ErrorResponse} 401 - Unauthorized (not authenticated)
- * @returns {ErrorResponse} 403 - Forbidden (not class teacher)
+ * @returns {ErrorResponse} 403 - Forbidden (not class teacher or user is not a student)
  * @returns {ErrorResponse} 404 - Class or student not found
+ * @returns {ErrorResponse} 409 - Student already enrolled in class
+ * @returns {ErrorResponse} 500 - Server error adding student to class
  */
 classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware, async (req: Request, res: Response): Promise<void> => {
     // Implementation for adding a student to a class
@@ -122,7 +127,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         const classDoc = await dbService.getClassById(classId);
 
         // Non-existent class check
-        if (!classDoc) {
+        if (classDoc === null) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Class not found',
@@ -149,7 +154,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         // Non-existent student check
         const studentDoc = await dbService.getUserById(studentId);    
 
-        if (!studentDoc) {
+        if (studentDoc === null) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Student not found',
@@ -164,11 +169,11 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         if (studentDoc.role !== STUDENT_ROLE) {
             const errorResponse: ErrorResponse = {
                 success: false,
-                error: 'User is not a student',
+                error: 'Student not found',
             };
 
             ErrorResponseSchema.parse(errorResponse);
-            res.status(400).json(errorResponse);
+            res.status(404).json(errorResponse);
             return;
         }
 
@@ -180,7 +185,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
             };
 
             ErrorResponseSchema.parse(errorResponse);
-            res.status(400).json(errorResponse);
+            res.status(409).json(errorResponse);
             return;
         }   
 
@@ -188,14 +193,14 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         const updatedClass = await dbService.addStudentToClass(classId, studentId);
 
         // Failed to add student check
-        if (!updatedClass) {
+        if (updatedClass === null) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Failed to add student to class',
             };
 
             ErrorResponseSchema.parse(errorResponse);
-            res.status(400).json(errorResponse);
+            res.status(500).json(errorResponse);
             return;
         }
 
@@ -217,7 +222,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         console.error('❌ Error adding student to class:', error);
         const errorResponse: ErrorResponse = {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to add student to class',
+            error: 'Unknown error occurred',
         };
 
         ErrorResponseSchema.parse(errorResponse);
@@ -235,6 +240,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
  * @returns {ErrorResponse} 401 - Unauthorized (not authenticated)
  * @returns {ErrorResponse} 403 - Forbidden (teacher: not class owner, student: not enrolled)
  * @returns {ErrorResponse} 404 - Class not found
+ * @returns {ErrorResponse} 500 - Server error retrieving class
  */
 classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response): Promise<void> => {
     // Implementation for retrieving class details
@@ -257,7 +263,7 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
         const classDoc = await dbService.getClassById(classId);
 
         // Non-existent class check
-        if (!classDoc) {
+        if (classDoc === null) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Class not found',
@@ -298,7 +304,7 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
 
         const studentsDetails = await dbService.getStudentDetails(classDoc.studentIds ?? []);
 
-        if (studentsDetails === null) {
+        if (studentsDetails === null && (classDoc.studentIds)?.length > 0) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Failed to retrieve student details',
@@ -333,7 +339,7 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
         console.error('❌ Error retrieving class details:', error);
         const errorResponse: ErrorResponse = {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to retrieve class details',
+            error: 'Unknown error occurred',
         };
 
         ErrorResponseSchema.parse(errorResponse);
@@ -346,10 +352,9 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
  * @description Retrieve all students (teacher only)
  * @param {string} req.headers.authorization [header] - JWT token in format <token>
  * @returns {SuccessListResponse} 200 - Array of students with id, name, and email
- * @returns {ErrorResponse} 400 - Failed to fetch students
  * @returns {ErrorResponse} 401 - Unauthorized (not authenticated)
  * @returns {ErrorResponse} 403 - Forbidden (not a teacher)
- * @returns {ErrorResponse} 500 - Server error
+ * @returns {ErrorResponse} 500 - Server error fetching students
  */
 classRouter.get('/students', authMiddleware, teacherRoleMiddleware, async (req: Request, res: Response): Promise<void>  => {
     try {
@@ -364,7 +369,7 @@ classRouter.get('/students', authMiddleware, teacherRoleMiddleware, async (req: 
             };
 
             ErrorResponseSchema.parse(errorResponse);
-            res.status(400).json(errorResponse);
+            res.status(500).json(errorResponse);
             return;
         }
 
@@ -385,7 +390,7 @@ classRouter.get('/students', authMiddleware, teacherRoleMiddleware, async (req: 
         console.error('❌ Error fetching students:', error);
         const errorResponse: ErrorResponse = {
             success: false,
-            error: 'Internal server error',
+            error: 'Unknown error occurred',
         };
 
         ErrorResponseSchema.parse(errorResponse);

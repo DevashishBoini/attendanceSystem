@@ -19,7 +19,8 @@ const authRouter : Router = Router();
  * @description Register a new user account
  * @param {SignupData} req.body [body] - User registration data (name, email, password, role)
  * @returns {SuccessResponse} 201 - User created with profile data (no token)
- * @returns {ErrorResponse} 400 - Validation error or email already exists
+ * @returns {ErrorResponse} 400 - Validation error / email already exists
+ * @returns {ErrorResponse} 500 - Failed to create user / Unknown error occurred
  */
 authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  => {
   try {
@@ -55,10 +56,10 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
     // Create new user document
     const newUser = await dbService.createUser(signupData);
 
-    if (!newUser) {
+    if (newUser === null) {
       const errorResponse: ErrorResponse = {
         success: false,
-        error: 'Failed to create user',
+        error: 'Email already exists',
       };
 
       ErrorResponseSchema.parse(errorResponse);
@@ -82,14 +83,15 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
     res.status(201).json(successResponse);
 
   } catch (error) {
-    // Handle other exceptions (database, JWT, etc.)
+    // Handle any errors (database, validation, JWT, etc.)
+    console.error('❌ Error during signup:', error);
     const errorResponse: ErrorResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Registration failed - unknown error occurred',
+      error: 'Unknown error occurred',
     };
 
     ErrorResponseSchema.parse(errorResponse);
-    res.status(400).json(errorResponse);
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -100,7 +102,8 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
  * @param {LoginData} req.body [body] - User credentials (email, password)
  * @returns {SuccessResponse} 200 - Authentication successful with JWT token
  * @returns {ErrorResponse} 401 - Invalid email or password
- * @returns {ErrorResponse} 400 - Validation error or login failed
+ * @returns {ErrorResponse} 400 - Validation error / Invalid Credentials 
+ * @returns {ErrorResponse} 500 - Unknown error occurred
  */
 authRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -121,7 +124,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 
     // Find user by email (fetch password for authentication)
     const userData = await dbService.getUserByEmail(loginData.email, true);
-    if (!userData) {
+    if (userData === null) {
       const errorResponse: ErrorResponse = {
         success: false,
         error: 'Invalid email or password',
@@ -166,13 +169,14 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 
   } catch (error) {
     // Handle other exceptions
+    console.error('❌ Error during login:', error);
     const errorResponse: ErrorResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Login failed - unknown error occurred',
+      error: 'Unknown error occurred',
     };
 
     ErrorResponseSchema.parse(errorResponse);
-    res.status(400).json(errorResponse);
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -185,14 +189,14 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
  * @returns {SuccessResponse} 200 - Current user's profile data
  * @returns {ErrorResponse} 401 - Unauthorized (invalid or missing token)
  * @returns {ErrorResponse} 404 - User not found
- * @returns {ErrorResponse} 400 - Fetch failed
+ * @returns {ErrorResponse} 500 - Unknown error occurred
  */
 authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     // authMiddleware ensures req.user exists
     const userData = await dbService.getUserById(req.user!.userId);
     
-    if (!userData) {
+    if (userData === null) {
       const errorResponse: ErrorResponse = {
         success: false,
         error: 'User not found',
@@ -218,13 +222,14 @@ authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promi
     SuccessResponseSchema.parse(successResponse);
     res.status(200).json(successResponse);
   } catch (error) {
+    console.error('❌ Error fetching user profile:', error);
     const errorResponse: ErrorResponse = {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch user',
+      error: 'Unknown error occurred',
     };
 
     ErrorResponseSchema.parse(errorResponse);
-    res.status(400).json(errorResponse);
+    res.status(500).json(errorResponse);
   }
 });
 
