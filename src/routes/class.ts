@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { Types } from 'mongoose';
 import { RegisterClassNameSchema, type RegisterClassNameData, ClassIdParamSchema, type ClassIdParam, StudentIdParamSchema, type StudentIdParam} from '../schemas/class.js';
-import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse } from '../schemas/responses.js';
+import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse, SuccessListResponseSchema, type SuccessListResponse } from '../schemas/responses.js';
 import { authMiddleware, teacherRoleMiddleware } from '../middleware/auth.js';
 import { dbService } from '../utils/db.js';
 import { TEACHER_ROLE, STUDENT_ROLE } from '../constants.js';
@@ -26,23 +26,20 @@ const classRouter : Router = Router();
 classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Request, res: Response): Promise<void>  => {
     try {
         // authMiddleware ensures req.user exists and user is in database
-        const validatedClassData = RegisterClassNameSchema.parse(req.body);
-
-        if (!validatedClassData) {
+        const validation = RegisterClassNameSchema.safeParse(req.body);
+        
+        if (!validation.success) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Invalid request schema',
             };
-            
             ErrorResponseSchema.parse(errorResponse);
             res.status(400).json(errorResponse);
             return;
         }
 
-        const classNameData: RegisterClassNameData = validatedClassData;
-
         const classData = {
-            className: classNameData?.className,
+            className: validation.data.className,
             teacherId: req.user!.userId,
             studentIds: [],
         };
@@ -60,17 +57,17 @@ classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Re
             return;
         }
         
-        
+        const newClassDetails = {
+            _id: newClass._id.toString(),
+            className: newClass.className,
+            teacherId: newClass.teacherId,
+            studentIds: newClass.studentIds ?? [],
+          }
         
         
         const successResponse: SuccessResponse = {
             success: true,
-            data: {
-                _id: newClass._id.toString(),
-                className: newClass.className,
-                teacherId: newClass.teacherId,
-                studentIds: newClass.studentIds ?? [],
-            }
+            data: newClassDetails,
         };
 
         SuccessResponseSchema.parse(successResponse);
@@ -102,27 +99,27 @@ classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Re
 classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware, async (req: Request, res: Response): Promise<void> => {
     // Implementation for adding a student to a class
     try {
-        const classIdParam = ClassIdParamSchema.parse(req.params);
-        const studentIdParam = StudentIdParamSchema.parse(req.body);
+        const classIdValidation = ClassIdParamSchema.safeParse(req.params);
+        const studentIdValidation = StudentIdParamSchema.safeParse(req.body);
 
-        // Validating parameters  
-        if (!classIdParam || !studentIdParam) {
+        // Validate parameters
+        if (!classIdValidation.success || !studentIdValidation.success) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Invalid request schema',
             };
-
             ErrorResponseSchema.parse(errorResponse);
             res.status(400).json(errorResponse);
             return;
         }
+        
 
-        const classId: ClassIdParam = classIdParam;
-        const studentId: StudentIdParam = studentIdParam;
+        const classId = classIdValidation.data.id;
+        const studentId = studentIdValidation.data.studentId;
         
 
     
-        const classDoc = await dbService.getClassById(classId.id);
+        const classDoc = await dbService.getClassById(classId);
 
         // Non-existent class check
         if (!classDoc) {
@@ -150,7 +147,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         }
 
         // Non-existent student check
-        const studentDoc = await dbService.getUserById(studentId.studentId);    
+        const studentDoc = await dbService.getUserById(studentId);    
 
         if (!studentDoc) {
             const errorResponse: ErrorResponse = {
@@ -176,7 +173,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         }
 
         // Student already enrolled check
-        if (classDoc.studentIds && classDoc.studentIds.includes(new Types.ObjectId(studentId.studentId))) {
+        if (classDoc.studentIds && classDoc.studentIds.includes(new Types.ObjectId(studentId))) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Student already enrolled in class',
@@ -188,7 +185,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         }   
 
 
-        const updatedClass = await dbService.addStudentToClass(classId.id, studentId.studentId);
+        const updatedClass = await dbService.addStudentToClass(classId, studentId);
 
         // Failed to add student check
         if (!updatedClass) {
@@ -202,14 +199,16 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
             return;
         }
 
+        const updatedClassDetails = {
+            _id: updatedClass._id.toString(),
+            className: updatedClass.className,
+            teacherId: updatedClass.teacherId,
+            studentIds: updatedClass.studentIds ?? [],
+          }
+
         const successResponse: SuccessResponse = {
             success: true,
-            data: {
-                _id: updatedClass._id.toString(),
-                className: updatedClass.className,
-                teacherId: updatedClass.teacherId,
-                studentIds: updatedClass.studentIds ?? [],
-            }
+            data: updatedClassDetails,
         };
 
         SuccessResponseSchema.parse(successResponse);
@@ -240,23 +239,22 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
 classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response): Promise<void> => {
     // Implementation for retrieving class details
     try {
-        const classIdParam = ClassIdParamSchema.parse(req.params);
+        const validation = ClassIdParamSchema.safeParse(req.params);
 
-        // Validating parameters  
-        if (!classIdParam) {
+        // Validate parameters
+        if (!validation.success) {
             const errorResponse: ErrorResponse = {
                 success: false,
                 error: 'Invalid request schema',
             };
-
             ErrorResponseSchema.parse(errorResponse);
             res.status(400).json(errorResponse);
             return;
         }
 
-        const classId: ClassIdParam = classIdParam;
+        const classId = validation.data.id;
 
-        const classDoc = await dbService.getClassById(classId.id);
+        const classDoc = await dbService.getClassById(classId);
 
         // Non-existent class check
         if (!classDoc) {
@@ -317,14 +315,16 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
             email: student.email,
         })) ?? [];
 
+        const classDetails = {
+            _id: classDoc._id.toString(),
+            className: classDoc.className,
+            teacherId: classDoc.teacherId,
+            students: studentsData,
+          }
+
         const successResponse: SuccessResponse = {
             success: true,
-            data: {
-                _id: classDoc._id.toString(),
-                className: classDoc.className,
-                teacherId: classDoc.teacherId,
-                students: studentsData,
-            }
+            data: classDetails
         };
 
         SuccessResponseSchema.parse(successResponse);
@@ -345,7 +345,7 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
  * GET /students
  * @description Retrieve all students (teacher only)
  * @param {string} req.headers.authorization [header] - JWT token in format <token>
- * @returns {SuccessResponse} 200 - Array of students with id, name, and email
+ * @returns {SuccessListResponse} 200 - Array of students with id, name, and email
  * @returns {ErrorResponse} 400 - Failed to fetch students
  * @returns {ErrorResponse} 401 - Unauthorized (not authenticated)
  * @returns {ErrorResponse} 403 - Forbidden (not a teacher)
@@ -372,15 +372,15 @@ classRouter.get('/students', authMiddleware, teacherRoleMiddleware, async (req: 
             _id: student._id.toString(),
             name: student.name,
             email: student.email,
-        }));
+        })) ?? [];
 
-        const successResponse: SuccessResponse = {
+        const successListResponse: SuccessListResponse = {
             success: true,
-            data: studentData ?? [],
+            data: studentData,
         };
 
-        SuccessResponseSchema.parse(successResponse);
-        res.status(200).json(successResponse);
+        SuccessListResponseSchema.parse(successListResponse);
+        res.status(200).json(successListResponse);
     } catch (error) {
         console.error('❌ Error fetching students:', error);
         const errorResponse: ErrorResponse = {

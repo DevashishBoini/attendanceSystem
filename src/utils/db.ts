@@ -108,22 +108,24 @@ export class DBService {
    * Create a new user in the database
    * 
    * Creates a new user document with the provided data.
-   * Routes should pass hashed password - service does not hash.
+   * Automatically hashes the password before saving to database.
    * 
-   * @param userData - User data object
+   * @param userData - User data object with plain text password
    * @returns Created user document or null if creation failed
    * 
    * @example
    * const user = await dbService.createUser({
    *   name: 'John Doe',
    *   email: 'john@example.com',
-   *   password: hashedPassword,
+   *   password: 'plainTextPassword',
    *   role: 'student'
    * });
    */
   async createUser(userData: CreateUserOptions): Promise<UserDocument | null> {
     try {
-      const newUser = await UserModel.create(userData);
+      const newUser = new UserModel(userData);
+      await newUser.hashPassword(userData.password);
+      await newUser.save();
       return newUser;
     } catch (error) {
       console.error('Error creating user:', error);

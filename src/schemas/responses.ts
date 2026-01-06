@@ -17,6 +17,16 @@ export const SuccessResponseSchema = z.object({
 
 export type SuccessResponse = z.infer<typeof SuccessResponseSchema>;
 
+
+export const SuccessListResponseSchema = z.object({
+  success: z.literal(true),  
+  data: z.array(z.record(z.string(), z.any()))  
+});
+
+export type SuccessListResponse = z.infer<typeof SuccessListResponseSchema>;
+
+
+
 /**
  * Error Response Schema
  * Used for failed API responses

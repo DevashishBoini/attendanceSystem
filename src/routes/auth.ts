@@ -55,12 +55,6 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
     // Create new user document
     const newUser = await dbService.createUser(signupData);
 
-    // Hash password using UserModel method
-    if (newUser) {
-      await newUser.hashPassword(signupData.password);
-      await newUser.save();
-    }
-
     if (!newUser) {
       const errorResponse: ErrorResponse = {
         success: false,
@@ -71,14 +65,17 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
       res.status(400).json(errorResponse);
       return;
     }
-    const successResponse: SuccessResponse = {
-      success: true,
-      data: {
+
+    const newUserDetails = {
         _id: newUser._id.toString(),
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-      },
+      }
+
+    const successResponse: SuccessResponse = {
+      success: true,
+      data: newUserDetails,
     };
 
     SuccessResponseSchema.parse(successResponse);
@@ -206,14 +203,16 @@ authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promi
       return;
     }
 
-    const successResponse: SuccessResponse = {
-      success: true,
-      data: {
+    const userDetails = {
         _id: userData._id.toString(),
         name: userData.name,
         email: userData.email,
         role: userData.role,
-      },
+      }
+
+    const successResponse: SuccessResponse = {
+      success: true,
+      data: userDetails,
     };
 
     SuccessResponseSchema.parse(successResponse);
