@@ -1,6 +1,8 @@
 import config from './config.js';
 
-import express, { type Request, type Response, type Express } from 'express'; 
+import express, { type Request, type Response, type Express, type NextFunction } from 'express'; 
+import swaggerUi from 'swagger-ui-express';
+import { getSwaggerSpec } from './swagger/swagger.js';
 import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse } from './schemas/responses.js';
 import { connectDB, disconnectDB } from './db.js';
 import healthRoutes from './routes/health.js';
@@ -16,6 +18,11 @@ export async function createApp(): Promise<Express> {
   app.use((req, res, next) => {
     console.log(`📝 ${req.method} ${req.path}`);
     next();
+  });
+
+  // Swagger Documentation - Dynamically load spec on each request for hot-reload during development
+  app.use('/api-docs', swaggerUi.serve, (req: Request, res: Response, next: NextFunction) => {
+    swaggerUi.setup(getSwaggerSpec())(req, res, next);
   });
 
   app.use('/', healthRoutes); // Health Routes
