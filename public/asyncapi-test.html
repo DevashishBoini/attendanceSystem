@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AsyncAPI WebSocket Tester</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      color: #2c3e50;
+    }
+
+    header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1200px) {
+      .main-content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .card h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #2c3e50;
+      font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .button-group.full {
+      grid-template-columns: 1fr;
+    }
+
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #2980b9;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: #c0392b;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+    }
+
+    .btn-success {
+      background: #27ae60;
+      color: white;
+    }
+
+    .btn-success:hover:not(:disabled) {
+      background: #229954;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .status.connected {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.disconnected {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status.connecting {
+      background: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+
+    .messages {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 15px;
+    }
+
+    .message {
+      padding: 8px;
+      margin-bottom: 8px;
+      border-radius: 3px;
+      border-left: 3px solid #ccc;
+    }
+
+    .message.sent {
+      background: #e3f2fd;
+      border-left-color: #2196f3;
+      color: #0d47a1;
+    }
+
+    .message.received {
+      background: #f1f8e9;
+      border-left-color: #4caf50;
+      color: #33691e;
+    }
+
+    .message.error {
+      background: #ffebee;
+      border-left-color: #f44336;
+      color: #b71c1c;
+    }
+
+    .message.info {
+      background: #f3e5f5;
+      border-left-color: #9c27b0;
+      color: #4a148c;
+    }
+
+    .message-time {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-right: 8px;
+    }
+
+    .clear-btn {
+      width: 100%;
+      padding: 8px;
+      background: #ecf0f1;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #34495e;
+      font-weight: 500;
+    }
+
+    .clear-btn:hover {
+      background: #d5dbdb;
+    }
+
+    .event-list {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 15px;
+    }
+
+    .event-item {
+      padding: 8px 12px;
+      background: #ecf0f1;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid #bdc3c7;
+    }
+
+    .event-item:hover {
+      background: #d5dbdb;
+      border-color: #95a5a6;
+    }
+
+    .event-item.active {
+      background: #3498db;
+      color: white;
+      border-color: #2980b9;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #3498db;
+      margin-right: 4px;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .info-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      border-left: 2px solid #3498db;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔌 AsyncAPI WebSocket Tester</h1>
+      <p>Test WebSocket connections and send real-time events</p>
+    </header>
+
+    <div class="main-content">
+      <!-- Connection Configuration -->
+      <div class="card">
+        <h2>Connection Settings</h2>
+
+        <div class="form-group">
+          <label>WebSocket URL</label>
+          <input
+            type="text"
+            id="wsUrl"
+            placeholder="ws://localhost:3000/ws"
+            value="ws://localhost:3000/ws"
+          />
+        </div>
+
+        <div class="form-group">
+          <label>JWT Token (optional)</label>
+          <input
+            type="text"
+            id="token"
+            placeholder="Paste your JWT token here"
+          />
+          <div class="info-text">Leave empty for anonymous connection (will be rejected by server)</div>
+        </div>
+
+        <div id="status" class="status disconnected">
+          ⚫ Disconnected
+        </div>
+
+        <div class="button-group full">
+          <button class="btn-primary" id="connectBtn" onclick="connect()">
+            🔗 Connect
+          </button>
+          <button class="btn-danger" id="disconnectBtn" onclick="disconnect()" disabled>
+            🔌 Disconnect
+          </button>
+        </div>
+      </div>
+
+      <!-- Message Sender -->
+      <div class="card">
+        <h2>Send Message</h2>
+
+        <div class="form-group">
+          <label>Event Type</label>
+          <select id="eventType" onchange="updateMessageTemplate()">
+            <option value="PING">PING - Server Heartbeat</option>
+            <option value="ATTENDANCE_MARKED">ATTENDANCE_MARKED - Mark student attendance</option>
+            <option value="TODAY_SUMMARY">TODAY_SUMMARY - Get attendance summary</option>
+            <option value="MY_ATTENDANCE">MY_ATTENDANCE - Get personal attendance</option>
+            <option value="DONE">DONE - Teacher ends session</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Message Payload (JSON)</label>
+          <textarea
+            id="messagePayload"
+            rows="6"
+            placeholder='{"classId": "..."}'
+          >{"event": "PING", "data": {}}</textarea>
+        </div>
+
+        <button class="btn-success" id="sendBtn" onclick="sendMessage()" disabled style="width: 100%; margin-bottom: 15px;">
+          📤 Send Message
+        </button>
+      </div>
+
+      <!-- Messages Log -->
+      <div class="card" style="grid-column: 1 / -1;">
+        <h2>Message Log</h2>
+        <div id="messages" class="messages">
+          <div class="message info">
+            <span class="message-time">SYSTEM</span>
+            Ready to connect. Enter token and click Connect.
+          </div>
+        </div>
+        <button class="clear-btn" onclick="clearMessages()">Clear Log</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    const wsUrlInput = document.getElementById('wsUrl');
+    const tokenInput = document.getElementById('token');
+    const statusDiv = document.getElementById('status');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const messagesDiv = document.getElementById('messages');
+    const eventTypeSelect = document.getElementById('eventType');
+    const messagePayload = document.getElementById('messagePayload');
+
+    const eventTemplates = {
+      'PING': { event: 'PING', data: {} },
+      'ATTENDANCE_MARKED': { event: 'ATTENDANCE_MARKED', data: { studentId: '<PASTE_STUDENT_ID>', status: 'present' } },
+      'TODAY_SUMMARY': { event: 'TODAY_SUMMARY', data: {} },
+      'MY_ATTENDANCE': { event: 'MY_ATTENDANCE', data: {} },
+      'DONE': { event: 'DONE', data: {} },
+    };
+
+    function updateMessageTemplate() {
+      const template = eventTemplates[eventTypeSelect.value];
+      messagePayload.value = JSON.stringify(template, null, 2);
+    }
+
+    function connect() {
+      const wsUrl = wsUrlInput.value.trim();
+      const token = tokenInput.value.trim();
+
+      console.log('Connect clicked:', { wsUrl, hasToken: !!token });
+
+      if (!wsUrl) {
+        addMessage('error', 'WebSocket URL is required');
+        return;
+      }
+
+      const url = token ? `${wsUrl}?token=${encodeURIComponent(token)}` : wsUrl;
+      console.log('Connecting to:', url);
+
+      statusDiv.textContent = '🟡 Connecting...';
+      statusDiv.className = 'status connecting';
+      connectBtn.disabled = true;
+
+      addMessage('info', `Connecting to ${wsUrl}...`);
+
+      try {
+        ws = new WebSocket(url);
+        console.log('WebSocket object created');
+
+        ws.onopen = () => {
+          console.log('WebSocket opened');
+          statusDiv.textContent = '🟢 Connected';
+          statusDiv.className = 'status connected';
+          disconnectBtn.disabled = false;
+          sendBtn.disabled = false;
+          addMessage('info', 'WebSocket connected successfully');
+        };
+
+        ws.onmessage = (event) => {
+          console.log('Message received:', event.data);
+          try {
+            const data = JSON.parse(event.data);
+            const eventName = data.event || 'UNKNOWN';
+            console.log(`📥 RECEIVED: ${eventName}`, data);
+            addMessage('received', `📥 RECEIVED EVENT: ${eventName}\n${JSON.stringify(data, null, 2)}`);
+          } catch {
+            console.log('Raw message:', event.data);
+            addMessage('received', `📥 RECEIVED (RAW): ${event.data}`);
+          }
+        };
+
+        ws.onerror = (event) => {
+          console.error('WebSocket error:', event);
+          addMessage('error', `WebSocket error: ${event.type}`);
+        };
+
+        ws.onclose = () => {
+          console.log('WebSocket closed');
+          statusDiv.textContent = '⚫ Disconnected';
+          statusDiv.className = 'status disconnected';
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          sendBtn.disabled = true;
+          addMessage('info', 'WebSocket disconnected');
+          ws = null;
+        };
+      } catch (error) {
+        console.error('Error creating WebSocket:', error);
+        addMessage('error', `Failed to create WebSocket: ${error.message}`);
+        statusDiv.textContent = '⚫ Error';
+        statusDiv.className = 'status disconnected';
+        connectBtn.disabled = false;
+      }
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+      }
+    }
+
+    function sendMessage() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        addMessage('error', 'WebSocket is not connected');
+        return;
+      }
+
+      try {
+        const payload = messagePayload.value.trim();
+        const parsed = JSON.parse(payload);
+        const eventName = parsed.event || 'UNKNOWN';
+        console.log(`📤 SENT: ${eventName}`, parsed);
+        ws.send(payload);
+        addMessage('sent', `📤 SENT EVENT: ${eventName}\n${JSON.stringify(parsed, null, 2)}`);
+      } catch (error) {
+        addMessage('error', `Failed to send message: ${error.message}`);
+      }
+    }
+
+    function addMessage(type, content) {
+      const time = new Date().toLocaleTimeString();
+      const messageEl = document.createElement('div');
+      messageEl.className = `message ${type}`;
+      messageEl.innerHTML = `<span class="message-time">${time}</span>${escapeHtml(content)}`;
+      messagesDiv.appendChild(messageEl);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function clearMessages() {
+      messagesDiv.innerHTML = '';
+      addMessage('info', 'Log cleared');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Initialize
+    updateMessageTemplate();
+  </script>
+</body>
+</html>

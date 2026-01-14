@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Types } from 'mongoose';
 import { UserRoles } from '../constants.js';
 
 /**
@@ -10,7 +11,12 @@ import { UserRoles } from '../constants.js';
  * JWTPayloadSchema.parse(payload);
  */
 export const JWTPayloadSchema = z.object({
-    userId: z.string().min(1, 'userId is required'),
+    userId: z.string().refine(
+    (val) => Types.ObjectId.isValid(val),
+    {
+      message: 'Invalid user ID format',
+    }
+  ),
     role: z.enum(UserRoles, 'Invalid user role'),
 });
 
@@ -26,7 +32,12 @@ export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
  * JWTDecodedSchema.parse(decoded);
  */
 export const JWTDecodedSchema = z.object({
-    userId: z.string().min(1, 'userId is required'),
+    userId: z.string().refine(
+    (val) => Types.ObjectId.isValid(val),
+    {
+      message: 'Invalid user ID format',
+    }
+  ),
     role: z.enum(UserRoles, 'Invalid user role'),
     iat: z.number(),  // Issued at timestamp (Unix epoch in seconds)
     exp: z.number(),  // Expiration timestamp (Unix epoch in seconds)

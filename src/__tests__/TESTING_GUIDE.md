@@ -1,6 +1,6 @@
 # Test Documentation
 
-This directory contains all test files for the attendance application, organized into unit and integration test groups.
+This directory contains all test files for the attendance application, organized into unit, db, integration, and websocket test groups.
 
 ## Test Logging System
 
@@ -42,6 +42,10 @@ cat src/__tests__/utils/test-failures.log
 - **class.integration.test.ts** - Class API endpoints (create, add student, get class details)
 - **students.integration.test.ts** - Students API endpoint (get all students with role-based access)
 
+### WebSocket Tests
+- **attendance.integration.test.ts** - Attendance API integration tests (start session, get my attendance, validation)
+- **websocket.unit.test.ts** - WebSocketManager unit tests (session management, state queries, error handling)
+
 ---
 
 ## Running Tests
@@ -56,7 +60,7 @@ Executes all tests (unit, db, and integration) at once using Vitest.
 ```bash
 pnpm test-all
 ```
-Executes unit tests first, then db tests, then integration test suites suite-by-suite[internal test suite parallelism determined in config].
+Executes unit tests first, then db tests, then integration tests, then websocket tests (suite-by-suite with internal test suite parallelism determined in config).
 
 ### Run Unit Tests Only
 ```bash
@@ -81,6 +85,20 @@ Runs all database tests in sequence to avoid conflicts:
 pnpm test:integration
 ```
 Runs full authentication and class API flow tests with a real database connection.
+
+### Run WebSocket Tests Only
+```bash
+pnpm test:websocket
+```
+Runs attendance API integration and WebSocketManager unit tests sequentially:
+- Attendance API endpoint tests
+- WebSocket session management tests
+
+### Run Attendance Tests Only
+```bash
+pnpm test:attendance
+```
+Runs just the attendance API integration tests (start session, get my attendance, validation).
 
 ### Watch Mode (All Tests)
 ```bash
@@ -113,10 +131,11 @@ Runs all tests with names matching the pattern (e.g., tests with "login" in thei
 | Command | Scope | Execution Mode | Use Case |
 |---------|-------|----------------|----------|
 | `pnpm test` | All tests | Parallel (all projects) | Quick test execution |
-| `pnpm test-all` | All tests | Sequential (unit → db → integration) | Full validation before deployment |
+| `pnpm test-all` | All tests | Sequential (unit → db → integration → websocket) | Full validation before deployment |
 | `pnpm test:unit` | Unit only | Parallel | Fast development feedback |
 | `pnpm test:db` | Database only | Sequential | Database layer validation |
 | `pnpm test:integration` | Integration only | Sequential | API endpoint validation |
+| `pnpm test:websocket` | WebSocket only | Sequential | Attendance API and WebSocket functionality |
 | `pnpm test:watch` | All tests | Watch mode | Continuous development |
 | `pnpm test:coverage` | All tests | Coverage report | Code coverage metrics |
 | `pnpm test-file <name>` | Single file | Isolated | Test specific file (e.g., `db-models`) |
@@ -132,9 +151,11 @@ Tests are configured in `vitest.config.ts` with the following setup:
 - **Environment**: `node` - Tests run in Node.js environment
 - **Watch**: `false` - Tests run once by default
 - **fileParallelism**: `true` - Multiple test files run in parallel (tests within a file run sequentially)
-- **Projects**: Two separate projects for modular execution
-  - `unit`: JWT, middleware, database tests (files run in parallel)
-  - `integration`: API endpoint tests (single file, runs sequentially)
+- **Projects**: Four separate projects for modular execution
+  - `unit`: JWT, middleware, schema validation tests (files run in parallel)
+  - `db`: Database connection, models, and service tests (files run sequentially to avoid conflicts)
+  - `integration`: Authentication and class API endpoint tests (files run sequentially)
+  - `websocket`: Attendance API and WebSocket tests (files run sequentially)
 
 ---
 

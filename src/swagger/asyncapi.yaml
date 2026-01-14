@@ -1,0 +1,285 @@
+asyncapi: 3.0.0
+info:
+  title: Attendance WebSocket API
+  version: 1.0.0
+  description: |
+    Real-time attendance marking system via WebSocket.
+    Allows teachers to mark student attendance and students to receive attendance updates.
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  production:
+    host: localhost:3000
+    protocol: ws
+    description: WebSocket server for attendance marking
+    variables:
+      token:
+        description: JWT authentication token (passed as query parameter)
+        default: your-jwt-token
+
+channels:
+  attendance:
+    address: /
+    description: |
+      Main WebSocket channel for attendance operations.
+      Connection requires JWT token as query parameter: ?token=YOUR_JWT_TOKEN
+    messages:
+      attendanceMarked:
+        name: ATTENDANCE_MARKED
+        title: Attendance Marked Event
+        description: Broadcast when a student's attendance status is marked
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['ATTENDANCE_MARKED']
+            data:
+              type: object
+              properties:
+                studentId:
+                  type: string
+                  description: MongoDB ObjectId of the student
+                  pattern: '^[a-f0-9]{24}$'
+                status:
+                  type: string
+                  enum: ['present', 'absent']
+                  description: Attendance status marked for the student
+              required:
+                - studentId
+                - status
+
+      ping:
+        name: PING
+        title: Ping Event
+        description: Client sends ping to check connection health
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['PING']
+            data:
+              type: object
+              description: Empty data object
+          required:
+            - event
+            - data
+
+      pong:
+        name: PONG
+        title: Pong Event
+        description: Server responds to ping with pong
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['PONG']
+            data:
+              type: object
+              description: Empty data object
+          required:
+            - event
+            - data
+
+      todaySummary:
+        name: TODAY_SUMMARY
+        title: Today's Attendance Summary
+        description: Broadcast with current attendance statistics for the session
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['TODAY_SUMMARY']
+            data:
+              type: object
+              properties:
+                present:
+                  type: integer
+                  description: Number of students marked present
+                absent:
+                  type: integer
+                  description: Number of students marked absent
+                total:
+                  type: integer
+                  description: Total number of students in class
+              required:
+                - present
+                - absent
+                - total
+
+      myAttendance:
+        name: MY_ATTENDANCE
+        title: My Attendance Status
+        description: Send to student to get their current attendance status
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['MY_ATTENDANCE']
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: ['present', 'absent', 'not yet updated']
+                  description: Student's current attendance status in the session
+              required:
+                - status
+
+      done:
+        name: DONE
+        title: Attendance Session Completed
+        description: Broadcast when teacher completes attendance session and records are saved
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['DONE']
+            data:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: Confirmation message
+                present:
+                  type: integer
+                  description: Final count of students marked present
+                absent:
+                  type: integer
+                  description: Final count of students marked absent
+                total:
+                  type: integer
+                  description: Total students processed in session
+              required:
+                - message
+                - present
+                - absent
+                - total
+
+      error:
+        name: ERROR
+        title: Error Event
+        description: Sent when an error occurs (e.g., unauthorized, invalid data)
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              enum: ['ERROR']
+            data:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: Human-readable error message
+              required:
+                - message
+
+operations:
+  sendAttendanceMarked:
+    action: send
+    title: Mark Student Attendance
+    description: |
+      Teacher only: Send attendance status for a student.
+      Requires TEACHER_ROLE.
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/attendanceMarked'
+
+  receivePing:
+    action: receive
+    title: Receive Ping
+    description: Client sends ping to check server is responding
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/ping'
+
+  sendPong:
+    action: send
+    title: Receive Pong Response
+    description: Server responds to ping
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/pong'
+
+  receiveTodaySummary:
+    action: receive
+    title: Request Today's Summary
+    description: |
+      Teacher only: Request current attendance summary.
+      Returns present, absent, and total counts.
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/todaySummary'
+
+  receiveMyAttendance:
+    action: receive
+    title: Request My Attendance Status
+    description: |
+      Student only: Request current attendance status.
+      Returns 'present', 'absent', or 'not yet updated'.
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/myAttendance'
+
+  receiveDone:
+    action: receive
+    title: Attendance Session Completed
+    description: |
+      Teacher only: Mark session as complete and save all records.
+      Students not yet marked will be set to 'absent'.
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/done'
+
+  receiveError:
+    action: receive
+    title: Receive Error
+    description: Error response from server for any operation
+    channel:
+      $ref: '#/channels/attendance'
+    messages:
+      - $ref: '#/channels/attendance/messages/error'
+
+components:
+  securitySchemes:
+    jwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token passed as query parameter ?token=YOUR_TOKEN
+
+  schemas:
+    ObjectId:
+      type: string
+      pattern: '^[a-f0-9]{24}$'
+      description: MongoDB ObjectId (24 hex characters)
+
+    AttendanceStatus:
+      type: string
+      enum:
+        - present
+        - absent
+        - not yet updated
+      description: Student attendance status
+
+    UserRole:
+      type: string
+      enum:
+        - teacher
+        - student
+      description: User role in the system

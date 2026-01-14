@@ -7,8 +7,8 @@ import { createApp } from '../index.js';
 import { connectDB, disconnectDB } from '../db.js';
 import type { SignupData, LoginData } from '../schemas/auth.js';
 import { SignupSchema, LoginSchema } from '../schemas/auth.js';
-import type { RegisterClassNameData, ClassIdParam, StudentIdParam } from '../schemas/class.js';
-import { RegisterClassNameSchema, ClassIdParamSchema, StudentIdParamSchema } from '../schemas/class.js';
+import type { RegisterClassNameData, ClassIdPathParam, StudentIdParam } from '../schemas/class.js';
+import { RegisterClassNameSchema, ClassIdPathParamSchema, StudentIdParamSchema } from '../schemas/class.js';
 import { TEACHER_ROLE, STUDENT_ROLE } from '../constants.js';
 import { testLog, clearLogs, printLogs, setTestName } from './utils/test-logger.js';
 
@@ -290,22 +290,26 @@ describe('Class API Integration Tests', () => {
       expect(response.body.error).toBe('Student not found');
     });
 
-    it('should return 409 if student is already enrolled', async () => {
+    it('should return 200 if student is already enrolled (idempotent)', async () => {
       // Add student first time
-      await request(app)
+      const firstResponse = await request(app)
         .post(`/class/${classId}/add-student`)
         .set('Authorization', teacherToken)
         .send({ studentId: studentId1 });
 
-      // Try to add same student again
-      const response = await request(app)
+      expect(firstResponse.status).toBe(200);
+      expect(firstResponse.body.success).toBe(true);
+
+      // Try to add same student again (idempotent - should return 200, not 409)
+      const secondResponse = await request(app)
         .post(`/class/${classId}/add-student`)
         .set('Authorization', teacherToken)
         .send({ studentId: studentId1 });
 
-      expect(response.status).toBe(409);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Student already enrolled in class');
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.body.success).toBe(true);
+      // Verify student appears only once
+      expect(secondResponse.body.data.studentIds.filter((id: string) => id === studentId1).length).toBe(1);
     });
 
     it('should allow adding multiple different students', async () => {

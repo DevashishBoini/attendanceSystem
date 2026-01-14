@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyJWT } from '../utils/jwt.js';
 import { type JWTDecoded, JWTDecodedSchema } from '../schemas/jwt.js';
-import { type UserRole, TEACHER_ROLE } from '../constants.js';
+import { type UserRole, TEACHER_ROLE, STUDENT_ROLE } from '../constants.js';
 import { ErrorResponseSchema, type ErrorResponse } from '../schemas/responses.js';
 
 /**
@@ -181,3 +181,105 @@ export function teacherRoleMiddleware(req: Request, res: Response, next: NextFun
     });
   }
 }
+
+
+export function studentRoleMiddleware(req: Request, res: Response, next: NextFunction): void {
+  try {
+    //  Check if user is authenticated (authMiddleware should run first)
+    if (!req.user) {
+
+      const errorResponse: ErrorResponse = {
+        success: false,
+        error: 'Unauthorized, token missing or invalid'
+      };
+
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(401).json(errorResponse);
+      return;
+    }
+    
+    //  Check if user's role is student
+    if (req.user.role !== STUDENT_ROLE) {
+
+    
+      console.error('❌ Student role check failed');
+      const errorResponse: ErrorResponse = {
+        success: false,
+        error: 'Forbidden, student access required'
+      };
+      
+      ErrorResponseSchema.parse(errorResponse);
+      res.status(403).json(errorResponse);
+      return;
+      }    
+
+    /**
+     * User is a student, proceed to route handler
+     */
+    next();
+  } catch (error) {
+    console.error('❌ Role check error:', error);
+    res.status(403).json({
+      success: false,
+      error: 'Authorization failed'
+    });
+  }
+}
+
+
+
+
+// ============================================
+// WebSocket Authentication Utilities
+// ============================================
+
+/**
+ * Verify and extract JWT from token string
+ * Used for WebSocket connections
+ * 
+ * Returns null if token is invalid - caller handles error response
+ * 
+ * @param token - JWT token string to verify
+ * @returns Decoded JWT payload if valid, null if invalid
+ */
+export function verifyAndDecodeToken(token: string): JWTDecoded | null {
+  try {
+    if (!token || token.trim().length === 0) {
+      return null;
+    }
+
+    // Verify token signature and expiration
+    const payload = verifyJWT(token);
+
+    if (!payload) {
+      return null;
+    }
+
+    // Validate payload structure using schema
+    const validatedPayload = JWTDecodedSchema.safeParse(payload);
+    if (!validatedPayload.success) {
+      return null;
+    }
+
+    return validatedPayload.data;
+  } catch (error) {
+    console.error('❌ Token verification error:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
+ * Verify user role
+ * Returns true if user has required role
+ * 
+ * @param user - Decoded JWT user data
+ * @param requiredRole - Role required (e.g., 'teacher')
+ * @returns true if user has required role, false otherwise
+ */
+export function verifyUserRole(user: JWTDecoded | undefined, requiredRole: UserRole): boolean {
+  if (!user) {
+    return false;
+  }
+  return user.role === requiredRole;
+}
+

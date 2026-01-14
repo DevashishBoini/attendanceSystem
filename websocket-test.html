@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Attendance Test</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        #messages { border: 1px solid #ddd; height: 300px; overflow-y: auto; padding: 10px; margin: 10px 0; background: #fafafa; border-radius: 4px; }
+        .message { margin: 5px 0; padding: 8px; border-left: 3px solid #007bff; background: white; border-radius: 2px; font-size: 13px; font-family: monospace; }
+        .message.error { border-left-color: #dc3545; background: #ffe6e6; }
+        .message.success { border-left-color: #28a745; background: #e6ffe6; }
+        .message.info { border-left-color: #007bff; background: #e6f2ff; }
+        input, select { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 8px 16px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #eee; border-radius: 4px; }
+        .section h3 { margin-top: 0; color: #333; }
+        #status { margin: 10px 0; font-weight: bold; padding: 10px; border-radius: 4px; background: #ffe6e6; color: #dc3545; }
+        .connected #status { background: #e6ffe6; color: #28a745; }
+        label { display: block; margin: 10px 0 5px 0; font-weight: bold; color: #333; }
+        input[type="text"], select { width: 100%; max-width: 400px; }
+        .button-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        .input-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Attendance Test Client</h1>
+        
+        <div class="section">
+            <h3>Connection Setup</h3>
+            <label>JWT Token:</label>
+            <input type="password" id="token" placeholder="Paste your JWT token here">
+            <div class="button-group">
+                <button onclick="connectWebSocket()">Connect</button>
+                <button onclick="disconnectWebSocket()" id="disconnectBtn" disabled>Disconnect</button>
+            </div>
+            <div id="status">Status: Not connected ❌</div>
+        </div>
+
+        <div class="section">
+            <h3>Messages Log</h3>
+            <div id="messages"></div>
+            <button onclick="clearMessages()">Clear Log</button>
+        </div>
+
+        <div class="section">
+            <h3>Quick Test</h3>
+            <button onclick="sendPing()">Send PING (Test Connection)</button>
+        </div>
+
+        <div class="section">
+            <h3>Attendance Management</h3>
+            <label>Class ID (ObjectId):</label>
+            <input type="text" id="classId" placeholder="e.g., 507f1f77bcf86cd799439011">
+            <div class="button-group">
+                <button onclick="startSession()">Start Session</button>
+                <button onclick="getSession()">Get Session Status</button>
+                <button onclick="endSession()">End Session</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Mark Attendance</h3>
+            <label>Student ID (ObjectId):</label>
+            <input type="text" id="studentId" placeholder="e.g., 507f1f77bcf86cd799439012">
+            <label>Status:</label>
+            <select id="status-select">
+                <option value="present">Present ✅</option>
+                <option value="absent">Absent ❌</option>
+            </select>
+            <button onclick="markAttendance()" style="margin-top: 10px;">Mark Attendance</button>
+        </div>
+
+        <div class="section">
+            <h3>Attendance Summary</h3>
+            <button onclick="getTodaySummary()">Get Today's Summary</button>
+            <div id="summaryResult" style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; display: none; background: #f9f9f9;">
+                <p><strong>Present:</strong> <span id="presentCount">-</span></p>
+                <p><strong>Absent:</strong> <span id="absentCount">-</span></p>
+                <p><strong>Total:</strong> <span id="totalCount">-</span></p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>My Attendance</h3>
+            <button onclick="getMyAttendance()">Check My Attendance Status</button>
+            <div id="myAttendanceResult" style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; display: none; background: #f9f9f9;">
+                <p><strong>Status:</strong> <span id="myAttendanceStatus">-</span></p>
+                <p><strong>Response:</strong> <code id="myAttendanceResponse" style="background: #fff; padding: 5px; border-radius: 3px; display: block; margin-top: 5px; font-size: 12px; overflow-x: auto;">-</code></p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>End Attendance Session & Save</h3>
+            <p style="color: #666; font-size: 14px;">⚠️ This will mark unmarked students as absent and persist all records to the database.</p>
+            <button onclick="finishAttendance()" style="background: #dc3545;">Mark Absent & Save Records (DONE)</button>
+            <div id="doneResult" style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; display: none; background: #f9f9f9;">
+                <p><strong>Message:</strong> <span id="doneMessage">-</span></p>
+                <p><strong>Final Present:</strong> <span id="finalPresent">-</span></p>
+                <p><strong>Final Absent:</strong> <span id="finalAbsent">-</span></p>
+                <p><strong>Final Total:</strong> <span id="finalTotal">-</span></p>
+                <p><strong>Response:</strong> <code id="doneResponse" style="background: #fff; padding: 5px; border-radius: 3px; display: block; margin-top: 5px; font-size: 12px; overflow-x: auto;">-</code></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        const messagesDiv = document.getElementById('messages');
+        const statusDiv = document.getElementById('status');
+        const container = document.querySelector('.container').parentElement;
+
+        // Add message to UI
+        function addMessage(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `message ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Clear messages
+        function clearMessages() {
+            messagesDiv.innerHTML = '';
+        }
+
+        // Update status
+        function updateStatus(text, isConnected = false) {
+            statusDiv.textContent = text;
+            if (isConnected) {
+                container.classList.add('connected');
+            } else {
+                container.classList.remove('connected');
+            }
+        }
+
+        // Connect to WebSocket
+        function connectWebSocket() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) {
+                addMessage('❌ Please paste JWT token first', 'error');
+                return;
+            }
+
+            const url = `ws://localhost:3000/ws?token=${token}`;
+            addMessage(`📡 Connecting to: ${url}`, 'info');
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    addMessage('✅ WebSocket Connected Successfully!', 'success');
+                    updateStatus('Status: Connected ✅', true);
+                    document.getElementById('disconnectBtn').disabled = false;
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        handleWebSocketMessage(message);
+                    } catch (e) {
+                        addMessage(`📨 Raw message: ${event.data}`, 'success');
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    addMessage(`❌ WebSocket Error: ${error.message || error}`, 'error');
+                    updateStatus('Status: Error ❌', false);
+                };
+
+                ws.onclose = () => {
+                    addMessage('❌ WebSocket Disconnected', 'error');
+                    updateStatus('Status: Disconnected ❌', false);
+                    document.getElementById('disconnectBtn').disabled = true;
+                };
+            } catch (e) {
+                addMessage(`❌ Connection Error: ${e.message}`, 'error');
+            }
+        }
+
+        // Disconnect from WebSocket
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                addMessage('🔌 Closing connection...', 'info');
+            }
+        }
+
+        // Send PING
+        function sendPing() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected to WebSocket', 'error');
+                return;
+            }
+            const msg = { event: 'PING', data: {} };
+            ws.send(JSON.stringify(msg));
+            addMessage(`📤 Sent PING: ${JSON.stringify(msg)}`, 'info');
+        }
+
+        // Start attendance session (HTTP)
+        function startSession() {
+            const classId = document.getElementById('classId').value.trim();
+            if (!classId) {
+                addMessage('❌ Please enter Class ID', 'error');
+                return;
+            }
+
+            addMessage(`📤 POST /attendance/start with classId: ${classId}`, 'info');
+
+            fetch('http://localhost:3000/attendance/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ classId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                addMessage(`✅ Session started: ${JSON.stringify(data)}`, 'success');
+            })
+            .catch(err => {
+                addMessage(`❌ Error: ${err.message}`, 'error');
+            });
+        }
+
+        // Get session status (HTTP)
+        function getSession() {
+            addMessage('📤 GET /attendance/session', 'info');
+
+            fetch('http://localhost:3000/attendance/session', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                addMessage(`✅ Session status: ${JSON.stringify(data)}`, 'success');
+            })
+            .catch(err => {
+                addMessage(`❌ Error: ${err.message}`, 'error');
+            });
+        }
+
+        // End session (HTTP)
+        function endSession() {
+            addMessage('📤 POST /attendance/end', 'info');
+
+            fetch('http://localhost:3000/attendance/end', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            })
+            .then(res => res.json())
+            .then(data => {
+                addMessage(`✅ Session ended: ${JSON.stringify(data)}`, 'success');
+            })
+            .catch(err => {
+                addMessage(`❌ Error: ${err.message}`, 'error');
+            });
+        }
+
+        // Mark attendance via WebSocket
+        function markAttendance() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected to WebSocket', 'error');
+                return;
+            }
+            
+            const studentId = document.getElementById('studentId').value.trim();
+            const status = document.getElementById('status-select').value;
+
+            if (!studentId) {
+                addMessage('❌ Please enter Student ID', 'error');
+                return;
+            }
+
+            const msg = {
+                event: 'ATTENDANCE_MARKED',
+                data: { studentId, status }
+            };
+            ws.send(JSON.stringify(msg));
+            addMessage(`📤 Sent ATTENDANCE_MARKED: ${JSON.stringify(msg)}`, 'info');
+        }
+
+        // Get today's attendance summary via WebSocket
+        function getTodaySummary() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected to WebSocket', 'error');
+                return;
+            }
+
+            const msg = {
+                event: 'TODAY_SUMMARY',
+            };
+            ws.send(JSON.stringify(msg));
+            addMessage(`📤 Sent TODAY_SUMMARY: ${JSON.stringify(msg)}`, 'info');
+        }
+
+        // Get my attendance status via WebSocket
+        function getMyAttendance() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected to WebSocket', 'error');
+                return;
+            }
+
+            const msg = {
+                event: 'MY_ATTENDANCE',
+            };
+            ws.send(JSON.stringify(msg));
+            addMessage(`📤 Sent MY_ATTENDANCE: ${JSON.stringify(msg)}`, 'info');
+        }
+
+        // Finish attendance - mark absent and save to database
+        function finishAttendance() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected to WebSocket', 'error');
+                return;
+            }
+
+            const msg = {
+                event: 'DONE',
+            };
+            ws.send(JSON.stringify(msg));
+            addMessage(`📤 Sent DONE: Mark absent & save records to database`, 'info');
+        }
+
+        // Event router - handles different WebSocket events
+        function handleWebSocketMessage(message) {
+            const eventType = message.event || 'UNKNOWN';
+            
+            switch(eventType) {
+                case 'TODAY_SUMMARY':
+                    handleTodaySummaryEvent(message);
+                    break;
+                case 'PONG':
+                    handlePongEvent(message);
+                    break;
+                case 'ERROR':
+                    handleErrorEvent(message);
+                    break;
+                case 'SESSION_STARTED':
+                    handleSessionStartedEvent(message);
+                    break;
+                case 'SESSION_ENDED':
+                    handleSessionEndedEvent(message);
+                    break;
+                case 'ATTENDANCE_MARKED':
+                    handleAttendanceMarkedEvent(message);
+                    break;
+                case 'MY_ATTENDANCE':
+                    handleMyAttendanceEvent(message);
+                    break;
+                case 'DONE':
+                    handleDoneEvent(message);
+                    break;
+                default:
+                    handleUnknownEvent(message);
+            }
+        }
+
+        // Event handlers
+        function handleTodaySummaryEvent(message) {
+            addMessage(`📊 [TODAY_SUMMARY] Present: ${message.data.present}, Absent: ${message.data.absent}, Total: ${message.data.total}`, 'success');
+            document.getElementById('presentCount').textContent = message.data.present || 0;
+            document.getElementById('absentCount').textContent = message.data.absent || 0;
+            document.getElementById('totalCount').textContent = message.data.total || 0;
+            document.getElementById('summaryResult').style.display = 'block';
+        }
+
+        function handlePongEvent(message) {
+            addMessage('🏓 [PONG] Connection is alive', 'success');
+        }
+
+        function handleErrorEvent(message) {
+            addMessage(`⚠️ [ERROR] ${message.data.message}`, 'error');
+        }
+
+        function handleSessionStartedEvent(message) {
+            addMessage(`✅ [SESSION_STARTED] ${JSON.stringify(message.data)}`, 'success');
+        }
+
+        function handleSessionEndedEvent(message) {
+            addMessage(`🛑 [SESSION_ENDED] ${JSON.stringify(message.data)}`, 'success');
+        }
+
+        function handleAttendanceMarkedEvent(message) {
+            addMessage(`✔️ [ATTENDANCE_MARKED] ${JSON.stringify(message.data)}`, 'success');
+        }
+
+        function handleMyAttendanceEvent(message) {
+            const status = message.data.status || 'unknown';
+            addMessage(`👤 [MY_ATTENDANCE] ${JSON.stringify(message.data)}`, 'success');
+            document.getElementById('myAttendanceStatus').textContent = status;
+            document.getElementById('myAttendanceResponse').textContent = JSON.stringify(message, null, 2);
+            document.getElementById('myAttendanceResult').style.display = 'block';
+        }
+
+        function handleDoneEvent(message) {
+            addMessage(`💾 [DONE] Attendance saved to database: ${JSON.stringify(message.data)}`, 'success');
+            document.getElementById('doneMessage').textContent = message.data.message || 'Attendance persisted';
+            document.getElementById('finalPresent').textContent = message.data.present || 0;
+            document.getElementById('finalAbsent').textContent = message.data.absent || 0;
+            document.getElementById('finalTotal').textContent = message.data.total || 0;
+            document.getElementById('doneResponse').textContent = JSON.stringify(message, null, 2);
+            document.getElementById('doneResult').style.display = 'block';
+        }
+
+        function handleUnknownEvent(message) {
+            addMessage(`📨 [${message.event}] ${JSON.stringify(message)}`, 'success');
+        }
+
+        // Initialize
+        addMessage('🚀 Attendance WebSocket Test Client Ready', 'success');
+        addMessage('Step 1: Get JWT token from /auth/login', 'info');
+        addMessage('Step 2: Paste token and click Connect', 'info');
+        addMessage('Step 3: Test with PING or manage attendance', 'info');
+    </script>
+</body>
+</html>

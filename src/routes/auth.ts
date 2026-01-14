@@ -22,7 +22,7 @@ const authRouter : Router = Router();
  * @returns {ErrorResponse} 400 - Validation error / email already exists
  * @returns {ErrorResponse} 500 - Failed to create user / Unknown error occurred
  */
-authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  => {
+authRouter.post('/auth/signup', async (req: Request, res: Response): Promise<void>  => {
   try {
     // Validate request body against SignupSchema
     const validationResult = SignupSchema.safeParse(req.body);
@@ -101,11 +101,10 @@ authRouter.post('/signup', async (req: Request, res: Response): Promise<void>  =
  * @description Authenticate user and return JWT token
  * @param {LoginData} req.body [body] - User credentials (email, password)
  * @returns {SuccessResponse} 200 - Authentication successful with JWT token
- * @returns {ErrorResponse} 401 - Invalid email or password
- * @returns {ErrorResponse} 400 - Validation error / Invalid Credentials 
+ * @returns {ErrorResponse} 400 - Invalid email or password / Validation error
  * @returns {ErrorResponse} 500 - Unknown error occurred
  */
-authRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
+authRouter.post('/auth/login', async (req: Request, res: Response): Promise<void> => {
   try {
     // Validate request body against LoginSchema
     const validationResult = LoginSchema.safeParse(req.body);
@@ -131,7 +130,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       };
 
       ErrorResponseSchema.parse(errorResponse);
-      res.status(401).json(errorResponse);
+      res.status(400).json(errorResponse);
       return;
     }
 
@@ -144,7 +143,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       };
 
       ErrorResponseSchema.parse(errorResponse);
-      res.status(401).json(errorResponse);
+      res.status(400).json(errorResponse);
       return;
     }
 
@@ -191,7 +190,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
  * @returns {ErrorResponse} 404 - User not found
  * @returns {ErrorResponse} 500 - Unknown error occurred
  */
-authRouter.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+authRouter.get('/auth/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     // authMiddleware ensures req.user exists
     const userData = await dbService.getUserById(req.user!.userId);

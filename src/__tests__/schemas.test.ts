@@ -8,8 +8,8 @@ import {
 import {
   RegisterClassNameSchema,
   type RegisterClassNameData,
-  ClassIdParamSchema,
-  type ClassIdParam,
+  ClassIdPathParamSchema,
+  type ClassIdPathParam,
   StudentIdParamSchema,
   type StudentIdParam,
 } from '../schemas/class.js';
@@ -315,30 +315,26 @@ describe('Schema Validation Tests', () => {
     });
   });
 
-  describe('ClassIdParamSchema', () => {
+  describe('ClassIdPathParamSchema', () => {
     it('should validate correct class ID', () => {
-      const validData = {
-        id: '507f1f77bcf86cd799439011',
-      };
+      const validData = '507f1f77bcf86cd799439011';
 
-      const result = ClassIdParamSchema.safeParse(validData);
+      const result = ClassIdPathParamSchema.safeParse(validData);
       expect(result.success).toBe(true);
-      expect(result.data?.id).toBe('507f1f77bcf86cd799439011');
+      expect(result.data).toBe('507f1f77bcf86cd799439011');
     });
 
     it('should reject empty ID', () => {
-      const invalidData = {
-        id: '',
-      };
+      const invalidData = '';
 
-      const result = ClassIdParamSchema.safeParse(invalidData);
+      const result = ClassIdPathParamSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
     });
 
     it('should reject missing ID', () => {
-      const invalidData = {};
+      const invalidData = undefined;
 
-      const result = ClassIdParamSchema.safeParse(invalidData);
+      const result = ClassIdPathParamSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
     });
 
@@ -350,7 +346,7 @@ describe('Schema Validation Tests', () => {
       ];
 
       testIds.forEach(id => {
-        const result = ClassIdParamSchema.safeParse({ id });
+        const result = ClassIdPathParamSchema.safeParse(id);
         expect(result.success).toBe(true);
       });
     });
@@ -365,18 +361,16 @@ describe('Schema Validation Tests', () => {
       ];
 
       invalidIds.forEach(id => {
-        const result = ClassIdParamSchema.safeParse({ id });
+        const result = ClassIdPathParamSchema.safeParse(id);
         expect(result.success).toBe(false);
       });
     });
 
     it('should parse and infer correct type', () => {
-      const validData = {
-        id: '507f1f77bcf86cd799439011',
-      };
+      const validData = '507f1f77bcf86cd799439011';
 
-      const result = ClassIdParamSchema.parse(validData) as ClassIdParam;
-      expect(result.id).toBe('507f1f77bcf86cd799439011');
+      const result = ClassIdPathParamSchema.parse(validData) as ClassIdPathParam;
+      expect(result).toBe('507f1f77bcf86cd799439011');
     });
   });
 
@@ -467,7 +461,7 @@ describe('Schema Validation Tests', () => {
         className: 'Test Class',
       });
 
-      const classId = ClassIdParamSchema.parse({ id: '507f1f77bcf86cd799439011' });
+      const classId = ClassIdPathParamSchema.parse('507f1f77bcf86cd799439011');
       const studentId = StudentIdParamSchema.parse({ studentId: '507f1f77bcf86cd799439011' });
 
       expect(signup).toBeDefined();

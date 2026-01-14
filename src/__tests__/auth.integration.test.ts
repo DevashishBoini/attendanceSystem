@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from 'vitest';
-import request from 'supertest';
-import type { Express } from 'express';
+import http from 'http';
+import type { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { UserModel } from '../db-models/user.js';
 import { createApp } from '../index.js';
@@ -91,7 +91,9 @@ function createInvalidLoginData(overrides?: InvalidLoginOverrides): Record<strin
 }
 
 describe('Authentication API Integration Tests', () => {
-  let app: Express;
+  let app: Awaited<ReturnType<typeof createApp>>;
+  let httpServer: HTTPServer;
+  let baseURL: string;
   let testUserEmail = `--test-${Date.now()}@example.com`;
   let authToken = '';
   let testUserId = '';
@@ -100,6 +102,29 @@ describe('Authentication API Integration Tests', () => {
     // Connect to database and create app
     await connectDB();
     app = await createApp();
+    httpServer = http.createServer(app);
+    
+    await new Promise<void>((resolve) => {
+      httpServer.listen(0, () => {
+        const address = httpServer.address();
+        if (address && typeof address !== 'string') {
+          baseURL = `http://localhost:${address.port}`;
+        }
+        resolve();
+      });
+    });
+  });
+
+  afterAll(async () => {
+    await UserModel.deleteMany({ email: { $regex: '^--test-' } });
+    await disconnectDB();
+
+    // Close HTTP server
+    await new Promise<void>((resolve) => {
+      httpServer.close(() => {
+        resolve();
+      });
+    });
   });
 
   beforeEach(async () => {
@@ -117,114 +142,130 @@ describe('Authentication API Integration Tests', () => {
     clearLogs();
   });
 
-  afterAll(async () => {
-    // Clean up and close connections
-    try {
-      await cleanupTestData();
-      await disconnectDB();
-    } catch (error) {
-      console.error('Cleanup error:', error);
-    }
-  });
-
   describe('POST /auth/signup', () => {
     it('should successfully create a new user', async () => {
       const signupData = createSignupData(testUserEmail);
-      const response = await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      const response = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
 
       expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('_id');
-      expect(response.body.data.email).toBe(testUserEmail);
-      expect(response.body.data.role).toBe(TEACHER_ROLE);
-      expect(response.body.data).not.toHaveProperty('password');
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveProperty('_id');
+      expect(data.data.email).toBe(testUserEmail);
+      expect(data.data.role).toBe(TEACHER_ROLE);
+      expect(data.data).not.toHaveProperty('password');
 
-      testUserId = response.body.data._id as string;
+      testUserId = data.data._id as string;
     });
 
     it('should return 400 for invalid email format', async () => {
       const signupData = createInvalidSignupData({ email: 'invalid-email' });
-      const response = await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      const response = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Invalid request schema');
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Invalid request schema');
     });
 
     it('should return 400 for password less than 6 characters', async () => {
       const signupData = createInvalidSignupData({ password: 'pass' });
-      const response = await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      const response = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Invalid request schema');
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Invalid request schema');
     });
 
     it('should return 400 if email already exists', async () => {
       // Setup: Create first user with TEACHER role
       const signupDataTeacher = createSignupData(testUserEmail);
-      const firstResponse = await request(app)
-        .post('/auth/signup')
-        .send(signupDataTeacher);
+      const firstResponse = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupDataTeacher),
+      });
+      const firstData = await firstResponse.json();
 
       // Verify first user creation succeeded
       expect(firstResponse.status).toBe(201);
-      expect(firstResponse.body.success).toBe(true);
+      expect(firstData.success).toBe(true);
 
       // Case 1: Try to create another user with EXACT SAME DATA (email, name, password, role)
       const identicalSignupData = createSignupData(testUserEmail);
-      const response1 = await request(app)
-        .post('/auth/signup')
-        .send(identicalSignupData);
+      const response1 = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(identicalSignupData),
+      });
+      const data1 = await response1.json();
 
       expect(response1.status).toBe(400);
-      expect(response1.body.success).toBe(false);
-      expect(response1.body.error).toBe('Email already exists');
+      expect(data1.success).toBe(false);
+      expect(data1.error).toBe('Email already exists');
 
       // Case 2: Try to create another user with SAME EMAIL but DIFFERENT ROLE
       const signupDataStudent = createSignupData(testUserEmail, { name: 'Jane Doe', password: 'password456', role: STUDENT_ROLE });
-      const response2 = await request(app)
-        .post('/auth/signup')
-        .send(signupDataStudent);
+      const response2 = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupDataStudent),
+      });
+      const data2 = await response2.json();
 
       expect(response2.status).toBe(400);
-      expect(response2.body.success).toBe(false);
-      expect(response2.body.error).toBe('Email already exists');
+      expect(data2.success).toBe(false);
+      expect(data2.error).toBe('Email already exists');
 
       // Case 3: Try to create another user with SAME EMAIL and SAME ROLE (but different name/password)
       const signupDataDuplicate = createSignupData(testUserEmail, { name: 'Different Name', password: 'differentPassword123', role: TEACHER_ROLE });
-      const response3 = await request(app)
-        .post('/auth/signup')
-        .send(signupDataDuplicate);
+      const response3 = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupDataDuplicate),
+      });
+      const data3 = await response3.json();
 
       expect(response3.status).toBe(400);
-      expect(response3.body.success).toBe(false);
-      expect(response3.body.error).toBe('Email already exists');
+      expect(data3.success).toBe(false);
+      expect(data3.error).toBe('Email already exists');
     });
 
     it('should return 400 for invalid role', async () => {
-      const response = await request(app)
-        .post('/auth/signup')
-        .send(createInvalidSignupData({ role: 'admin' }));
+      const response = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createInvalidSignupData({ role: 'admin' })),
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Invalid request schema');
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Invalid request schema');
     });
 
     it('should hash password before storing', async () => {
       const password = 'testPassword123';
       const signupData = createSignupData(testUserEmail, { password });
       
-      await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
 
       const user = await UserModel.findOne({ email: testUserEmail }).select('+password');
       
@@ -237,62 +278,79 @@ describe('Authentication API Integration Tests', () => {
     beforeEach(async () => {
       // Create a test user before login tests
       const signupData = createSignupData(testUserEmail);
-      await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
     });
 
     it('should successfully login and return JWT token', async () => {
       const loginData = createLoginData(testUserEmail);
-      const response = await request(app)
-        .post('/auth/login')
-        .send(loginData);
+      const response = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginData),
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('token');
-      expect(typeof response.body.data.token).toBe('string');
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveProperty('token');
+      expect(typeof data.data.token).toBe('string');
 
-      authToken = response.body.data.token;
+      authToken = data.data.token;
     });
 
-    it('should return 401 for invalid email', async () => {
-      const response = await request(app)
-        .post('/auth/login')
-        .send(createLoginData('--test-nonexistent@example.com'));
+    it('should return 400 for invalid email', async () => {
+      const response = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createLoginData('--test-nonexistent@example.com')),
+      });
+      const data = await response.json();
 
-      expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Invalid email or password');
+      expect(response.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Invalid email or password');
     });
 
-    it('should return 401 for incorrect password', async () => {
-      const response = await request(app)
-        .post('/auth/login')
-        .send(createInvalidLoginData({ email: testUserEmail, password: 'wrongpassword' }));
+    it('should return 400 for incorrect password', async () => {
+      const response = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createInvalidLoginData({ email: testUserEmail, password: 'wrongpassword' })),
+      });
+      const data = await response.json();
 
-      expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Invalid email or password');
+      expect(response.status).toBe(400);
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Invalid email or password');
     });
 
     it('should return 400 for invalid email format', async () => {
-      const response = await request(app)
-        .post('/auth/login')
-        .send(createInvalidLoginData({ email: '--test-invalid-email' }));
+      const response = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createInvalidLoginData({ email: '--test-invalid-email' })),
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toBe('Invalid request schema');
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Invalid request schema');
     });
 
     it('should return valid JWT token with user data', async () => {
       const loginData = createLoginData(testUserEmail);
-      const loginResponse = await request(app)
-        .post('/auth/login')
-        .send(loginData);
+      const loginResponse = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginData),
+      });
+      const loginData_res = await loginResponse.json();
 
-      const token = loginResponse.body.data.token;
+      const token = loginData_res.data.token;
       const decoded = verifyJWT(token);
       
       expect(decoded).toBeTruthy();
@@ -305,51 +363,63 @@ describe('Authentication API Integration Tests', () => {
     beforeEach(async () => {
       // Create user and get token
       const signupData = createSignupData(testUserEmail);
-      const signupResponse = await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      const signupResponse = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
+      const signupData_res = await signupResponse.json();
 
-      testUserId = signupResponse.body.data._id;
+      testUserId = signupData_res.data._id;
 
       const loginData = createLoginData(testUserEmail);
-      const loginResponse = await request(app)
-        .post('/auth/login')
-        .send(loginData);
+      const loginResponse = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginData),
+      });
+      const loginData_res = await loginResponse.json();
 
-      authToken = loginResponse.body.data.token;
+      authToken = loginData_res.data.token;
     });
 
     it('should return user data when authenticated', async () => {
-      const response = await request(app)
-        .get('/auth/me')
-        .set('Authorization', authToken);
+      const response = await fetch(`${baseURL}/auth/me`, {
+        method: 'GET',
+        headers: { 'Authorization': authToken },
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('_id');
-      expect(response.body.data._id).toBe(testUserId);
-      expect(response.body.data.email).toBe(testUserEmail);
-      expect(response.body.data.role).toBe(TEACHER_ROLE);
-      expect(response.body.data).not.toHaveProperty('password');
+      expect(data.success).toBe(true);
+      expect(data.data).toHaveProperty('_id');
+      expect(data.data._id).toBe(testUserId);
+      expect(data.data.email).toBe(testUserEmail);
+      expect(data.data.role).toBe(TEACHER_ROLE);
+      expect(data.data).not.toHaveProperty('password');
     });
 
     it('should return 401 when Authorization header is missing', async () => {
-      const response = await request(app)
-        .get('/auth/me');
+      const response = await fetch(`${baseURL}/auth/me`, {
+        method: 'GET',
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('Unauthorized');
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('Unauthorized');
     });
 
     it('should return 401 for invalid token', async () => {
-      const response = await request(app)
-        .get('/auth/me')
-        .set('Authorization', 'invalid.token.here');
+      const response = await fetch(`${baseURL}/auth/me`, {
+        method: 'GET',
+        headers: { 'Authorization': 'invalid.token.here' },
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('Unauthorized');
+      expect(data.success).toBe(false);
+      expect(data.error).toContain('Unauthorized');
     });
 
     it('should return 401 for expired token', async () => {
@@ -360,12 +430,14 @@ describe('Authentication API Integration Tests', () => {
         { expiresIn: '-1s' }
       );
 
-      const response = await request(app)
-        .get('/auth/me')
-        .set('Authorization', expiredToken);
+      const response = await fetch(`${baseURL}/auth/me`, {
+        method: 'GET',
+        headers: { 'Authorization': expiredToken },
+      });
+      const data = await response.json();
 
       expect(response.status).toBe(401);
-      expect(response.body.success).toBe(false);
+      expect(data.success).toBe(false);
     });
   });
 
@@ -373,66 +445,82 @@ describe('Authentication API Integration Tests', () => {
     it('should complete full auth flow: signup -> login -> access protected route', async () => {
       // 1. Signup
       const signupData = createSignupData(testUserEmail, { name: 'Complete Flow Test', password: 'securePassword123', role: STUDENT_ROLE });
-      const signupResponse = await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      const signupResponse = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
+      const signupData_res = await signupResponse.json();
 
       expect(signupResponse.status).toBe(201);
-      expect(signupResponse.body.success).toBe(true);
-      const userId = signupResponse.body.data._id;
+      expect(signupData_res.success).toBe(true);
+      const userId = signupData_res.data._id;
 
       // 2. Login
       const loginData = createLoginData(testUserEmail, { password: 'securePassword123' });
-      const loginResponse = await request(app)
-        .post('/auth/login')
-        .send(loginData);
+      const loginResponse = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginData),
+      });
+      const loginData_res = await loginResponse.json();
 
       expect(loginResponse.status).toBe(200);
-      expect(loginResponse.body.success).toBe(true);
-      const token = loginResponse.body.data.token;
+      expect(loginData_res.success).toBe(true);
+      const token = loginData_res.data.token;
 
       // 3. Access protected route with token
-      const meResponse = await request(app)
-        .get('/auth/me')
-        .set('Authorization', token);
+      const meResponse = await fetch(`${baseURL}/auth/me`, {
+        method: 'GET',
+        headers: { 'Authorization': token },
+      });
+      const meData = await meResponse.json();
 
       expect(meResponse.status).toBe(200);
-      expect(meResponse.body.success).toBe(true);
-      expect(meResponse.body.data._id).toBe(userId);
-      expect(meResponse.body.data.email).toBe(testUserEmail);
-      expect(meResponse.body.data.role).toBe(STUDENT_ROLE);
+      expect(meData.success).toBe(true);
+      expect(meData.data._id).toBe(userId);
+      expect(meData.data.email).toBe(testUserEmail);
+      expect(meData.data.role).toBe(STUDENT_ROLE);
     });
 
     it('should return 404 if authenticated user is deleted from database', async () => {
       // 1. Create user and get token
       const testUserEmail = `--test-${Date.now()}-deleted@example.com`;
       const signupData = createSignupData(testUserEmail, { role: STUDENT_ROLE, password: 'password123' });
-      const signupResponse = await request(app)
-        .post('/auth/signup')
-        .send(signupData);
+      const signupResponse = await fetch(`${baseURL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
+      const signupData_res = await signupResponse.json();
 
       expect(signupResponse.status).toBe(201);
-      const userId = signupResponse.body.data._id;
+      const userId = signupData_res.data._id;
 
       const loginData = createLoginData(testUserEmail);
-      const loginResponse = await request(app)
-        .post('/auth/login')
-        .send(loginData);
+      const loginResponse = await fetch(`${baseURL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loginData),
+      });
+      const loginData_res = await loginResponse.json();
 
       expect(loginResponse.status).toBe(200);
-      const token = loginResponse.body.data.token;
+      const token = loginData_res.data.token;
 
       // 2. Delete user from database (but token is still valid)
       await UserModel.findByIdAndDelete(userId);
 
       // 3. Try to access /auth/me with valid token but deleted user
-      const meResponse = await request(app)
-        .get('/auth/me')
-        .set('Authorization', token);
+      const meResponse = await fetch(`${baseURL}/auth/me`, {
+        method: 'GET',
+        headers: { 'Authorization': token },
+      });
+      const meData = await meResponse.json();
 
       expect(meResponse.status).toBe(404);
-      expect(meResponse.body.success).toBe(false);
-      expect(meResponse.body.error).toBe('User not found');
+      expect(meData.success).toBe(false);
+      expect(meData.error).toBe('User not found');
     });
   });
 });

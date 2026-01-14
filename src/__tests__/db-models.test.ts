@@ -33,9 +33,11 @@ describe('Database Models Schema Tests', () => {
     clearLogs();
     
     // Clean up test data after each test
+    const testClasses = await ClassModel.find({ className: { $regex: '--Test Model Class' } });
+    const testClassIds = testClasses.map(c => c._id);
     await UserModel.deleteMany({ email: { $regex: '^--test-models-' } });
     await ClassModel.deleteMany({ className: { $regex: '--Test Model Class' } });
-    await AttendanceModel.deleteMany({});
+    await AttendanceModel.deleteMany({ classId: { $in: testClassIds } });
   });
 
   describe('UserModel Schema', () => {
@@ -432,7 +434,7 @@ describe('Database Models Schema Tests', () => {
 
 
   // skipping attendance model tests for now
-  describe.skip('AttendanceModel Schema', () => {
+  describe('AttendanceModel Schema', () => {
     beforeEach(async () => {
       // Create test teacher and class
       const teacherData = {

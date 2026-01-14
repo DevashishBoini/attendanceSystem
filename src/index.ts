@@ -2,12 +2,15 @@ import config from './config.js';
 
 import express, { type Request, type Response, type Express, type NextFunction } from 'express'; 
 import swaggerUi from 'swagger-ui-express';
-import { getSwaggerSpec } from './swagger/swagger.js';
+import { getSwaggerSpec, getAsyncApiSpec } from './swagger/swagger.js';
 import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse } from './schemas/responses.js';
 import { connectDB, disconnectDB } from './db.js';
 import healthRoutes from './routes/health.js';
 import authRoutes from './routes/auth.js';
 import classRoutes from './routes/class.js';
+import attentendanceRoutes from './routes/attendance.js';
+import { createServer } from 'http';
+import { WebSocketManager, setWebSocketManager } from './websocket/wsManager.js';
 
 export async function createApp(): Promise<Express> {
   const app = express(); // create Express app    
@@ -16,7 +19,7 @@ export async function createApp(): Promise<Express> {
 
   // Middleware - Request logging
   app.use((req, res, next) => {
-    console.log(`📝 ${req.method} ${req.path}`);
+    console.log(` ${req.method} ${req.path}`);
     next();
   });
 
@@ -25,9 +28,16 @@ export async function createApp(): Promise<Express> {
     swaggerUi.setup(getSwaggerSpec())(req, res, next);
   });
 
-  app.use('/', healthRoutes); // Health Routes
-  app.use('/auth', authRoutes); // Auth Routes
+  // AsyncAPI Documentation - Serve spec as JSON for testing WebSocket connections
+  app.get('/asyncapi.json', (req: Request, res: Response) => {
+    res.json(getAsyncApiSpec());
+  });
+
+  app.use(healthRoutes); // Health Routes
+  app.use(authRoutes); // Auth Routes
   app.use(classRoutes); // Class Routes
+  app.use(attentendanceRoutes); // Attendance Routes
+
 
   // Unknown Route 404 handler
   app.use((req: Request, res: Response) => {
@@ -81,7 +91,15 @@ async function main(): Promise<void> {
 
     const app = await createApp();
 
-    const server = app.listen(config.APP_PORT, () => {
+    // const server = app.listen(config.APP_PORT, () => {
+    //   console.log(`Server running on port ${config.APP_PORT}`);
+    // });
+
+    const server = createServer(app);
+    const wsManager = new WebSocketManager(server);
+    setWebSocketManager(wsManager);
+    
+    server.listen(config.APP_PORT, () => {
       console.log(`Server running on port ${config.APP_PORT}`);
     });
 
@@ -90,7 +108,7 @@ async function main(): Promise<void> {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error(' Failed to start server:', error);
     process.exit(1);
   }
 }

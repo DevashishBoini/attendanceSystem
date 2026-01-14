@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { Types } from 'mongoose';
-import { RegisterClassNameSchema, type RegisterClassNameData, ClassIdParamSchema, type ClassIdParam, StudentIdParamSchema, type StudentIdParam} from '../schemas/class.js';
+import { RegisterClassNameSchema, type RegisterClassNameData, ClassIdPathParamSchema, type ClassIdPathParam, StudentIdParamSchema, type StudentIdParam} from '../schemas/class.js';
 import { SuccessResponseSchema, ErrorResponseSchema, type SuccessResponse, type ErrorResponse, SuccessListResponseSchema, type SuccessListResponse } from '../schemas/responses.js';
 import { authMiddleware, teacherRoleMiddleware } from '../middleware/auth.js';
 import { dbService } from '../utils/db.js';
@@ -89,22 +89,21 @@ classRouter.post('/class', authMiddleware, teacherRoleMiddleware, async (req: Re
 
 /**
  * POST /class/:id/add-student
- * @description Add a student to a class (teacher only)
+ * @description Add a student to a class (teacher only) - Idempotent operation
  * @param {string} req.headers.authorization [header] - JWT token in format <token>
  * @param {string} req.params.id [path] - Class ID
  * @param {StudentIdParam} req.body [body] - Student data (studentId)
- * @returns {SuccessResponse} 200 - Student added with updated class data
+ * @returns {SuccessResponse} 200 - Student added (or already enrolled) with updated class data
  * @returns {ErrorResponse} 400 - Validation error 
  * @returns {ErrorResponse} 401 - Unauthorized (not authenticated)
  * @returns {ErrorResponse} 403 - Forbidden (not class teacher or user is not a student)
  * @returns {ErrorResponse} 404 - Class or student not found
- * @returns {ErrorResponse} 409 - Student already enrolled in class
  * @returns {ErrorResponse} 500 - Server error adding student to class
  */
 classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware, async (req: Request, res: Response): Promise<void> => {
     // Implementation for adding a student to a class
     try {
-        const classIdValidation = ClassIdParamSchema.safeParse(req.params);
+        const classIdValidation = ClassIdPathParamSchema.safeParse(req.params.id);
         const studentIdValidation = StudentIdParamSchema.safeParse(req.body);
 
         // Validate parameters
@@ -119,7 +118,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         }
         
 
-        const classId = classIdValidation.data.id;
+        const classId : ClassIdPathParam = classIdValidation.data;
         const studentId = studentIdValidation.data.studentId;
         
 
@@ -177,18 +176,25 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
             return;
         }
 
-        // Student already enrolled check
+        // Student already enrolled check - idempotent response (return 200, not 409)
         if (classDoc.studentIds && classDoc.studentIds.includes(new Types.ObjectId(studentId))) {
-            const errorResponse: ErrorResponse = {
-                success: false,
-                error: 'Student already enrolled in class',
+            // Student already enrolled - return current class state (idempotent)
+            const updatedClassDetails = {
+                _id: classDoc._id.toString(),
+                className: classDoc.className,
+                teacherId: classDoc.teacherId,
+                studentIds: classDoc.studentIds ?? [],
+              }
+
+            const successResponse: SuccessResponse = {
+                success: true,
+                data: updatedClassDetails,
             };
 
-            ErrorResponseSchema.parse(errorResponse);
-            res.status(409).json(errorResponse);
+            SuccessResponseSchema.parse(successResponse);
+            res.status(200).json(successResponse);
             return;
         }   
-
 
         const updatedClass = await dbService.addStudentToClass(classId, studentId);
 
@@ -219,7 +225,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
         SuccessResponseSchema.parse(successResponse);
         res.status(200).json(successResponse);
     } catch (error) {
-        console.error('❌ Error adding student to class:', error);
+        console.error(' Error adding student to class:', error);
         const errorResponse: ErrorResponse = {
             success: false,
             error: 'Unknown error occurred',
@@ -245,7 +251,7 @@ classRouter.post('/class/:id/add-student', authMiddleware, teacherRoleMiddleware
 classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response): Promise<void> => {
     // Implementation for retrieving class details
     try {
-        const validation = ClassIdParamSchema.safeParse(req.params);
+        const validation = ClassIdPathParamSchema.safeParse(req.params.id);
 
         // Validate parameters
         if (!validation.success) {
@@ -258,7 +264,7 @@ classRouter.get('/class/:id', authMiddleware, async (req: Request, res: Response
             return;
         }
 
-        const classId = validation.data.id;
+        const classId = validation.data;
 
         const classDoc = await dbService.getClassById(classId);
 

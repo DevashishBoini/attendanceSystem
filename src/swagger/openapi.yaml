@@ -11,9 +11,10 @@ servers:
 components:
   securitySchemes:
     bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+      type: apiKey
+      in: header
+      name: Authorization
+      description: JWT token - provide token directly without "Bearer" prefix
 
   schemas:
     User:
@@ -55,6 +56,20 @@ components:
         status:
           type: string
           enum: [present, absent]
+
+    AttendanceSession:
+      type: object
+      properties:
+        classId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        attendance:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [present, absent]
 
     SuccessResponse:
       type: object
@@ -537,6 +552,162 @@ paths:
                 error: "Forbidden, teacher access required"
         500:
           description: Server error fetching students
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Unknown error occurred"
+  /attendance/start:
+    post:
+      summary: Start a new attendance session for a class
+      tags: [Attendance]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [classId]
+              properties:
+                classId:
+                  type: string
+                  description: MongoDB ObjectId of the class
+              example:
+                classId: "507f1f77bcf86cd799439011"
+      responses:
+        200:
+          description: Attendance session started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                data:
+                  classId: "507f1f77bcf86cd799439011"
+                  startedAt: "2026-01-14T10:30:00Z"
+        400:
+          description: Validation error (invalid class ID format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Invalid request schema"
+        401:
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Unauthorized or invalid token"
+        403:
+          description: Forbidden - Only class teacher can start session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Forbidden, not class teacher"
+        404:
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Class not found"
+        409:
+          description: Conflict - Another session is already active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Session already active for class 507f1f77bcf86cd799439012"
+        500:
+          description: Server error starting attendance session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Unknown error occurred"
+
+  /class/{id}/my-attendance:
+    get:
+      summary: Get student's attendance status for a specific class
+      tags: [Attendance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Class ID (MongoDB ObjectId format - must be 24 hexadecimal characters)
+          schema:
+            type: string
+      responses:
+        200:
+          description: Student's attendance record retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+                data:
+                  classId: "507f1f77bcf86cd799439011"
+                  status: "present"
+        400:
+          description: Validation error (invalid class ID format)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Invalid class ID format"
+        401:
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Unauthorized or invalid token"
+        403:
+          description: Forbidden - Student not enrolled in class
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Forbidden, student not enrolled in class"
+        404:
+          description: Class not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: "Class not found"
+        500:
+          description: Server error fetching attendance records
           content:
             application/json:
               schema:

@@ -3,6 +3,8 @@ import type { UserDocument } from '../db-models/user.js';
 import { ClassModel } from '../db-models/class.js';
 import type { ClassDocument } from '../db-models/class.js';
 import { Types } from 'mongoose';
+import { AttendanceModel, type AttendanceDocument } from '../db-models/attendance.js';
+import {ActiveSessionSchema, type ActiveSession} from '../schemas/attendance.js';
 
 /**
  * Interface for creating a new user
@@ -24,6 +26,13 @@ interface CreateClassOptions {
 }
 
 
+interface InsertAttendanceRecord {
+  classId: Types.ObjectId;
+  studentId: Types.ObjectId;
+  status: "present" | "absent";
+}
+
+
 /**
  * Database Service Class
  * 
@@ -35,7 +44,7 @@ interface CreateClassOptions {
  * const dbService = DBService.getInstance();
  * const user = await dbService.getUserById('507f1f77bcf86cd799439011');
  */
-export class DBService {
+class DBService {
   private static instance: DBService;
 
   private constructor() {}
@@ -263,6 +272,67 @@ export class DBService {
       return students;
     } catch (error) {
       console.error('Error fetching all students:', error);
+      throw error;
+    }
+  }
+
+
+
+  async addAttendanceRecords(classId: string, activeSession: ActiveSession ): Promise<Array<AttendanceDocument>> {
+    try {
+      const attendanceDocs : Array<InsertAttendanceRecord> = Object.keys(activeSession.attendance).map(studentId => ({
+        classId: new Types.ObjectId(classId),
+        studentId: new Types.ObjectId(studentId),
+        status: activeSession.attendance[studentId]!,
+      }));
+      const result = await AttendanceModel.insertMany(attendanceDocs);
+      return result as Array<AttendanceDocument>;
+    } catch (error) {
+      console.error('Error adding attendance records:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get attendance record for a student in a specific class
+   * 
+   * Retrieves a single attendance record for a student within a class.
+   * Distinguishes between "not found" (returns null) and database errors (throws).
+   * 
+   * @param studentId - MongoDB student ID (string)
+   * @param classId - MongoDB class ID (string)
+   * @returns Attendance document if found, null if no record exists
+   * @throws Error if database query fails (e.g., invalid ID format, connection error)
+   * 
+   * @example
+   * // Record found
+   * const record = await dbService.getAttendanceRecordsForStudentInClass(studentId, classId);
+   * if (record) {
+   *   console.log(record.status); // 'present' or 'absent'
+   * }
+   * 
+   * // Record not found
+   * const record = await dbService.getAttendanceRecordsForStudentInClass(studentId, classId);
+   * if (record === null) {
+   *   console.log('Student not marked yet');
+   * }
+   * 
+   * // Database error
+   * try {
+   *   const record = await dbService.getAttendanceRecordsForStudentInClass(studentId, classId);
+   * } catch (error) {
+   *   console.error('DB error:', error); // Connection, invalid ID, etc.
+   * }
+   */
+  async getAttendanceRecordsForStudentInClass(studentId: string, classId: string): Promise<AttendanceDocument | null> {
+    try {
+      const record = await AttendanceModel.findOne<AttendanceDocument>({
+        classId: new Types.ObjectId(classId),
+        studentId: new Types.ObjectId(studentId),
+      });
+      return record;
+    } catch (error) {
+      console.error('Error fetching attendance records for student in class:', error);
       throw error;
     }
   }

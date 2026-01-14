@@ -7,14 +7,12 @@ export const RegisterClassNameSchema = z.object({
 
 export type RegisterClassNameData = z.infer<typeof RegisterClassNameSchema>;
 
-export const ClassIdParamSchema = z.object({
-    id: z.string()
-        .refine((val) => Types.ObjectId.isValid(val), {
-            message: 'Invalid class ID format',
-        }),
-});
+export const ClassIdPathParamSchema = z.string()
+    .refine((val) => Types.ObjectId.isValid(val), {
+        message: 'Invalid class ID format',
+    });
 
-export type ClassIdParam = z.infer<typeof ClassIdParamSchema>;
+export type ClassIdPathParam = z.infer<typeof ClassIdPathParamSchema>;
 
 export const StudentIdParamSchema = z.object({
     studentId: z.string()
