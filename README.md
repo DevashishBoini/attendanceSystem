@@ -46,17 +46,17 @@ This project implements the **Backend + WebSocket - Live Attendance System** ass
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    HTTP Server (Express)                     │
+│                    HTTP Server (Express)                    │
 ├─────────────────────────────────────────────────────────────┤
-│  Routes: Health, Auth, Class, Attendance                     │
-│  Middleware: JWT Auth, Request Logging                       │
+│  Routes: Health, Auth, Class, Attendance                    │
+│  Middleware: JWT Auth, Request Logging                      │
 ├─────────────────────────────────────────────────────────────┤
-│               WebSocket Server (ws library)                   │
-│  Events: PING/PONG, ATTENDANCE_MARKED, TODAY_SUMMARY,        │
-│          MY_ATTENDANCE, DONE, ERROR                          │
+│               WebSocket Server (ws library)                 │
+│  Events: PING/PONG, ATTENDANCE_MARKED, TODAY_SUMMARY,       │
+│          MY_ATTENDANCE, DONE, ERROR                         │
 ├─────────────────────────────────────────────────────────────┤
-│                   MongoDB Database                           │
-│  Collections: Users, Classes, Attendance                     │
+│                   MongoDB Database                          │
+│  Collections: Users, Classes, Attendance                    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -523,7 +523,6 @@ pnpm run test-file src/__tests__/websocket.integration.test.ts
 
 ---
 
-[**Internal doc**](https://www.notion.so/Attendance-2e8008b3019e801e8081c1348cdb2236)
 
 ## 📝 Notes
 
