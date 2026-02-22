@@ -149,7 +149,7 @@ src/
 
 1. **Clone and install dependencies**:
    ```bash
-   cd /Users/dboini/Public/proj/attendance
+   cd attendance
    pnpm install
    ```
 
